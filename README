@@ -1,0 +1,11 @@
+Code used for the Eurobot cup.
+
+The hardware architecture is described in the "Hardware_architecture.pdf".
+
+maximus_162.c => for the ATmega162 uproc
+
+
+
+
+ROS packages (for debug and robot's state visualization) :
+
