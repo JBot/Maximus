@@ -738,7 +738,7 @@ void read_RoboClaw_M1(char addr) {
         char3 = getchar1();
         char4 = getchar1();
         
-        my_long = (char4 << 24) + (char3 << 16) + (char2 << 8) + char1;
+        my_long = ((long)char4 << 24) + ((long)char3 << 16) + ((long)char2 << 8) + (long)char1;
         getchar1();
         getchar1();
         
@@ -788,7 +788,7 @@ void move_motors(void) {
 /*******************************/
 /*   MOTION CONTROL FUNCTIONS  */
 /*******************************/
-
+#ifdef DEF
 /* Distance in ticks */    
 void compute_distance_ramp(RobotCommand *cmd, motor *used_motor, signed long distance, long general_time) {
         long T0, T1, T2;
@@ -920,12 +920,9 @@ void do_position_control_and_ramp(RobotCommand *cmd, long general_time) {
         default :
                 break;
        
-       }
-        
-
-        move_motors();        
+       }        
 }
-
+#endif
 
  
 
@@ -996,6 +993,7 @@ int computePositionPID_alpha(int error, int *last_error, int *error_sum) {
 /*************************************/
 /* Compute the position of the robot */
 /*************************************/
+#ifdef DEF
 void get_Odometers(void) {
  long left_wheel = 0;
  long right_wheel = 0;
@@ -1040,6 +1038,7 @@ void get_Odometers(void) {
         
 
 }
+#endif
   
 void do_motion_control(void) {
 /*
@@ -1098,8 +1097,47 @@ void do_motion_control(void) {
         */
 
 }  
-   
 
+
+/***************************/
+/* ROS Interface Functions */
+/***************************/
+#ifdef DEF
+void angular_from_ROS(char sign) {
+        signed long tmp = 0;
+        
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        
+        if(sign == 0) // negative
+                alpha_motor.des_speed = -tmp;
+        else
+                alpha_motor.des_speed = tmp;
+}
+
+void linear_from_ROS(char sign) {
+        signed long tmp = 0;
+
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        tmp = (tmp * 10) + (getchar() - 48);
+        
+        if(sign == 0) // negative
+                delta_motor.des_speed = -tmp;  
+        else
+                delta_motor.des_speed = tmp;        
+}   
+#endif
+
+/*************************************/
+/* Basic movement functions for test */
+/*************************************/
+#ifdef DEF
 void tourner_droite(void){ 
 
         des_left_speed = VITESSE_BASSE;
@@ -1164,7 +1202,7 @@ void stop(void){
         delta_motor.des_speed = 0;
         alpha_motor.des_speed = 0;
 }
- 
+#endif 
 
 
 
@@ -1193,6 +1231,7 @@ interrupt [TIM1_OVF] void timer1_ovf_isr(void)
 void main(void)
 {
 // Declare your local variables here
+char serial_command;
 
 // Crystal Oscillator division factor: 1
 #pragma optsize-
@@ -1201,7 +1240,7 @@ CLKPR=0x00;
 #ifdef _OPTIMIZE_SIZE_
 #pragma optsize+
 #endif
-
+#ifdef DEF
 // Input/Output Ports initialization
 // Port A initialization
 // Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
@@ -1210,10 +1249,10 @@ PORTA=0x00;
 DDRA=0x00;
 
 // Port B initialization
-// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
+// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=Out 
 // State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T 
 PORTB=0x00;
-DDRB=0x00;
+DDRB=0x01;
 
 // Port C initialization
 // Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
@@ -1390,7 +1429,7 @@ UBRR1L=0x17;
 // Analog Comparator: Off
 // Analog Comparator Input Capture by Timer/Counter 1: Off
 ACSR=0x80;
-
+#endif
 write_RoboClaw_speed_M1M2(128, 0, 0);
 
 #ifdef USE_IMU
@@ -1411,6 +1450,9 @@ init_robot_yaw_offset(&maximus);// Init yaw starting point
 #asm("sei")
     
 delay_ms(1000);
+
+// For ROS utilization
+output_ON = 1;
 
 while (1)
       {
@@ -1512,8 +1554,8 @@ while (1)
         putchar(display5);
         putchar(display6);
         
-        //entier = (unsigned int) fabs(maximus.theta * 10000); 
-        entier = (unsigned int) fabs(maximus.theta * RAD2DEG);
+        entier = (unsigned int) fabs(maximus.theta * 10000); 
+        //entier = (unsigned int) fabs(maximus.theta * RAD2DEG);
         display6 = (entier % 10) +48;
         entier = (unsigned int) (entier / 10);
         display5 = (entier % 10) +48;
@@ -1540,6 +1582,7 @@ while (1)
         
         }
       
+      /*
       if(rx_counter0 > 0){
         //get_uart = getchar();
         switch(getchar()){
@@ -1564,9 +1607,24 @@ while (1)
         //case 'T' : write_RoboClaw_allcmd_M1M2(128, 40000, 3000, 40000, 3000, 40000); break;
         //case 'Y' : read_RoboClaw_M1(128); break;
         default :
-        
-        }
+        }         
       }
+      */
+                 
+      if(rx_counter0 >= (1+5)){
+        serial_command = getchar();
+        if(serial_command == 'a') // positive
+                angular_from_ROS(1);
+        else if(serial_command == 'A') // negative
+                angular_from_ROS(0); 
+        else if(serial_command == 'l')
+                linear_from_ROS(1);
+        else if(serial_command == 'L')
+                linear_from_ROS(0);
+      
+      }
+      
+      
       };
 }
         

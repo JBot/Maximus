@@ -1,0 +1,23 @@
+<launch>
+
+ <!-- Visualization Node-->
+  <node pkg="rviz" type="rviz" name="maximus_rviz"/>
+
+
+ <!-- joy node -->
+  <node respawn="true" pkg="joy"
+        type="joy" name="maximus_joy" >
+    <param name="dev" type="string" value="/dev/input/js0" />
+    <param name="deadzone" value="0.12" />
+  </node>
+
+ <!-- Axes -->
+  <param name="axis_linear" value="1" type="int"/>
+  <param name="axis_angular" value="0" type="int"/>
+  <param name="scale_linear" value="12000" type="double"/>
+  <param name="scale_angular" value="12000" type="double"/>
+
+  <node pkg="maximus" type="maximus_pose" name="maximus"/>
+
+</launch>
+

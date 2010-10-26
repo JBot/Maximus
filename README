@@ -1,11 +1,20 @@
-Code used for the Eurobot cup.
+Code used for the Eurobot cup 2011.
 
 The hardware architecture is described in the "Hardware_architecture.pdf".
+The communication between ROS and the robot is described in the "Current_global_architecture.pdf".
 
-maximus_162.c => for the ATmega162 uproc
+Code inside the robot :
+
+- maximus_162.c => for the ATmega162 uproc
 
 
 
 
-ROS packages (for debug and robot's state visualization) :
+ROS packages (for debug and robot's state vizualisation) :
+
+- maximus_pose.cpp => used to communicate between the robot and ROS environment. It connects to the robot via the serial bluetooth port and publish : the pose, the path, and later the range sensors. It also subscribes to the joy topic.
+
+- maximus_rviz.vcg => rviz config to vizualise the robot.
+
+- maximus_joy.launch => script to launch all the packages (rviz, joy, maximus).
 
