@@ -1,10 +1,3 @@
-/*! \class TeleopMaximus
- *  \brief Class to communicate between the robot and ROS.
- *  \author Joffrey Kriegel
- *  \version 1.0
- *  \date    2010
- */
-
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "geometry_msgs/Pose.h"
@@ -14,6 +7,8 @@
 #include <visualization_msgs/Marker.h>
 #include <tf/transform_broadcaster.h>
 #include <joy/Joy.h>
+#include <move_base_msgs/MoveBaseAction.h>
+#include <actionlib/client/simple_action_client.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
@@ -51,6 +46,8 @@ class TeleopMaximus
 
 		// Joystick suscriber
 		ros::Subscriber joy_sub_;
+		// Goal suscriber
+		ros::Subscriber goal_sub_;
 		// Set the position of the robot
 		ros::Publisher pose_in_map_pub;
 		// Set the path of the robot => Doesn't work ...
@@ -63,6 +60,7 @@ class TeleopMaximus
 
 	private:
 		void joyCallback(const joy::Joy::ConstPtr& joy);
+		void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& goal);
 		ros::NodeHandle nh;
 
 		int i;
@@ -103,6 +101,8 @@ TeleopMaximus::TeleopMaximus():
 
 	// Joystick suscriber
 	joy_sub_ = nh.subscribe<joy::Joy>("joy", 10, &TeleopMaximus::joyCallback, this);
+	// Goal suscriber
+	goal_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("maximus_goal", 10, &TeleopMaximus::goalCallback, this);
 	// Set the position of the robot
 	pose_in_map_pub  = nh.advertise<geometry_msgs::PoseStamped>("maximus_pose", 50);
 	// Set the path of the robot 
@@ -310,7 +310,7 @@ signed int TeleopMaximus::read_serial_port(char first_input) {
 		}
 		temp_input = (temp_input * 10) + (my_input[0] - 48);
 		read_flag = read(ser_fd, my_input, 1);
-	while((read_flag == 0) || (read_flag == -1)) {
+		while((read_flag == 0) || (read_flag == -1)) {
 			read_flag = read(ser_fd, my_input, 1);
 		}
 		temp_input = (temp_input * 10) + (my_input[0] - 48);
@@ -335,18 +335,58 @@ signed int TeleopMaximus::read_serial_port(char first_input) {
 
 void TeleopMaximus::joyCallback(const joy::Joy::ConstPtr& joy)
 {
+	char Serout[260]={0};
 	angular_value = a_scale_*joy->axes[angular_port];
 	linear_value = l_scale_*joy->axes[linear_port];
+/*
+	if(ser_fd != -1) {
+		sprintf(Serout, "T000000");
+		write(ser_fd, &Serout, 7);
+		ROS_INFO("GOFRONT %s", Serout);
+	}
+*/
+}
+
+void TeleopMaximus::goalCallback(const geometry_msgs::PoseStamped::ConstPtr& goal)
+{
+	char Serout[260]={0};
+	double x, y;
+	char byte1, byte2, byte3, byte4, byte5, byte6;
+	x = abs(goal->pose.position.x*1000*2/10);
+	y = abs(goal->pose.position.y*1000*2/10);
+
+	if(ser_fd != -1) {
+
+
+		byte1 = (char)(((long)abs(y)) % 10)+48;
+		byte2 = (char)((((long)abs(y)) /10) % 10)+48;
+		byte3 = (char)((((long)abs(y)) /100) % 10)+48;
+		byte4 = (char)((((long)abs(x))) % 10)+48;
+		byte5 = (char)((((long)abs(x)) /10) % 10)+48;
+		byte6 = (char)((((long)abs(x)) /100) % 10)+48;
+
+		sprintf(Serout, "G%c", byte6);
+		sprintf(Serout, "%s%c", Serout, byte5);
+		sprintf(Serout, "%s%c", Serout, byte4);
+		sprintf(Serout, "%s%c", Serout, byte3);
+		sprintf(Serout, "%s%c", Serout, byte2);
+		sprintf(Serout, "%s%c", Serout, byte1);
+
+		//sprintf(Serout, "l05000");
+		write(ser_fd, &Serout, 7);
+		ROS_INFO("GOAL : %s", Serout);
+	}
+
 }
 
 void TeleopMaximus::get_value_and_do_computation(void) {
 	float rotation = 0.0;
 
 	if(ser_fd != -1) {
-		my_maximus_pose.pose.position.y = -((float)TeleopMaximus::read_serial_port('x')) / 10000.0;
-		my_maximus_pose.pose.position.x = -((float)TeleopMaximus::read_serial_port('y')) / 10000.0;
-		rotation =  -TeleopMaximus::read_serial_port('t');
-		TeleopMaximus::rotate(0, (-( (float)rotation) / 10000.0 ), 0, &my_maximus_pose);
+		my_maximus_pose.pose.position.x = ((float)TeleopMaximus::read_serial_port('x')) / 10000.0;
+		my_maximus_pose.pose.position.y = ((float)TeleopMaximus::read_serial_port('y')) / 10000.0;
+		rotation =  TeleopMaximus::read_serial_port('t');
+		TeleopMaximus::rotate(0, (( (float)rotation) / 10000.0 ), 0, &my_maximus_pose);
 
 		// reset laser scan
 		//                      my_laser_scan.ranges.std::vector<float>::clear();
@@ -363,7 +403,7 @@ void TeleopMaximus::get_value_and_do_computation(void) {
 		heading -= (angular_value / 120000 );
 		rotation = heading *10000;
 		TeleopMaximus::rotate(0, -(heading), 0, &my_maximus_pose);
-		
+
 		my_maximus_pose.pose.position.x += (linear_value * cos(-heading) / 100000);
 		my_maximus_pose.pose.position.y += (linear_value * sin(-heading) / 100000);
 
@@ -386,7 +426,7 @@ void TeleopMaximus::get_value_and_do_computation(void) {
 	//marker_pub.publish(marker);
 
 	transform.setOrigin( tf::Vector3(my_maximus_pose.pose.position.x, my_maximus_pose.pose.position.y, 0.0) );
-	transform.setRotation( tf::Quaternion((-( (float)rotation) / 10000.0 ), 0, 0) );
+	transform.setRotation( tf::Quaternion((( (float)rotation) / 10000.0 ), 0, 0) );
 	br.sendTransform(tf::StampedTransform(transform, my_maximus_pose.header.stamp, "/map", "/maximus_robot_tf"));
 
 	marker.header.stamp = ros::Time::now();
@@ -418,15 +458,15 @@ void TeleopMaximus::publish_all(void) {
 	TeleopMaximus::laser_sensor_pub.publish(my_laser_scan);
 	// Send acceleration values to the robot
 	if(ser_fd != -1) {
-	/*if ( ser_fd ) {*/
+		/*if ( ser_fd ) {*/
 		if(prev_linear_value != linear_value) {
-			char byte1, byte2, byte3, byte4, byte5;
+			char byte1, byte2, byte3, byte4, byte5, byte6=0;
 			byte1 = (char)(((long)abs(linear_value)) % 10)+48;
 			byte2 = (char)((((long)abs(linear_value)) /10) % 10)+48;
 			byte3 = (char)((((long)abs(linear_value)) /100) % 10)+48;
 			byte4 = (char)((((long)abs(linear_value)) /1000) % 10)+48;
 			byte5 = (char)((((long)abs(linear_value)) /10000) % 10)+48;
-			
+
 			if(linear_value >= 0)
 				sprintf(Serout, "l%c", byte5);
 			else
@@ -435,81 +475,83 @@ void TeleopMaximus::publish_all(void) {
 			sprintf(Serout, "%s%c", Serout, byte3);
 			sprintf(Serout, "%s%c", Serout, byte2);
 			sprintf(Serout, "%s%c", Serout, byte1);
+			sprintf(Serout, "%s%c", Serout, byte6);
 
 			//sprintf(Serout, "l05000");
-                	write(ser_fd, &Serout, 6);
+			write(ser_fd, &Serout, 7);
 			prev_linear_value = linear_value;
 			ROS_INFO("linear %s", Serout);
 		}
 		if(prev_angular_value != angular_value) {
-         		char byte1, byte2, byte3, byte4, byte5;
+			char byte1, byte2, byte3, byte4, byte5, byte6=0;
 			byte1 = (char)(((long)abs(angular_value)) % 10)+48;
-                        byte2 = (char)((((long)abs(angular_value)) /10) % 10)+48;
-                        byte3 = (char)((((long)abs(angular_value)) /100) % 10)+48;
-                        byte4 = (char)((((long)abs(angular_value)) /1000) % 10)+48;
-                        byte5 = (char)((((long)abs(angular_value)) /10000) % 10)+48;
+			byte2 = (char)((((long)abs(angular_value)) /10) % 10)+48;
+			byte3 = (char)((((long)abs(angular_value)) /100) % 10)+48;
+			byte4 = (char)((((long)abs(angular_value)) /1000) % 10)+48;
+			byte5 = (char)((((long)abs(angular_value)) /10000) % 10)+48;
 
-                        if(angular_value >= 0)
-                                sprintf(Serout, "a%c", byte5);
-                        else
-                                sprintf(Serout, "A%c", byte5);
-                        sprintf(Serout, "%s%c", Serout, byte4);
-                        sprintf(Serout, "%s%c", Serout, byte3);
-                        sprintf(Serout, "%s%c", Serout, byte2);
-                        sprintf(Serout, "%s%c", Serout, byte1);
+			if(angular_value >= 0)
+				sprintf(Serout, "a%c", byte5);
+			else
+				sprintf(Serout, "A%c", byte5);
+			sprintf(Serout, "%s%c", Serout, byte4);
+			sprintf(Serout, "%s%c", Serout, byte3);
+			sprintf(Serout, "%s%c", Serout, byte2);
+			sprintf(Serout, "%s%c", Serout, byte1);
+			sprintf(Serout, "%s%c", Serout, byte6);
 
-                        //sprintf(Serout, "l05000");
-                        write(ser_fd, &Serout, 6);
-       
+			//sprintf(Serout, "l05000");
+			write(ser_fd, &Serout, 7);
+
 			prev_angular_value = angular_value;
 			ROS_INFO("angular %lu", (long)prev_angular_value);
-                }
+		}
 
 	}
-}
+	}
 
-
-/**
- * This tutorial demonstrates simple sending of messages over the ROS system.
- */
-int main(int argc, char **argv)
-{
-
-	// write to serial if connected
-	//if ( ser_fd ) {
-	//	sprintf(Serout, "S"); // Start the communication
-	//	write(ser_fd, &Serout, sizeof(Serout));
-	//}
 
 	/**
-	 * The ros::init() function needs to see argc and argv so that it can perform
-	 * any ROS arguments and name remapping that were provided at the command line. For programmatic
-	 * remappings you can use a different version of init() which takes remappings
-	 * directly, but for most command-line programs, passing argc and argv is the easiest
-	 * way to do it.  The third argument to init() is the name of the node.
-	 *
-	 * You must call one of the versions of ros::init() before using any other
-	 * part of the ROS system.
+	 * This tutorial demonstrates simple sending of messages over the ROS system.
 	 */
-	ros::init(argc, argv, "maximus_talker");
-	TeleopMaximus maximus_talker;
-	// Refresh rate
-	ros::Rate loop_rate(35); // 35 with bluetooth
-	float rotation = 0.0;
-	while (ros::ok())
+	int main(int argc, char **argv)
 	{
-		// Get the values and do the computation
-		maximus_talker.get_value_and_do_computation();
-		// Publish all the values and messages
-		maximus_talker.publish_all();
-		ros::spinOnce();
-		loop_rate.sleep();
+
+		// write to serial if connected
+		//if ( ser_fd ) {
+		//	sprintf(Serout, "S"); // Start the communication
+		//	write(ser_fd, &Serout, sizeof(Serout));
+		//}
+
+		/**
+		 * The ros::init() function needs to see argc and argv so that it can perform
+		 * any ROS arguments and name remapping that were provided at the command line. For programmatic
+		 * remappings you can use a different version of init() which takes remappings
+		 * directly, but for most command-line programs, passing argc and argv is the easiest
+		 * way to do it.  The third argument to init() is the name of the node.
+		 *
+		 * You must call one of the versions of ros::init() before using any other
+		 * part of the ROS system.
+		 */
+		ros::init(argc, argv, "maximus_talker");
+		TeleopMaximus maximus_talker;
+		// Refresh rate
+		ros::Rate loop_rate(35); // 35 with bluetooth
+		float rotation = 0.0;
+		while (ros::ok())
+		{
+			// Get the values and do the computation
+			maximus_talker.get_value_and_do_computation();
+			// Publish all the values and messages
+			maximus_talker.publish_all();
+			ros::spinOnce();
+			loop_rate.sleep();
+		}
+
+		ros::Duration(2.0).sleep();
+
+		ros::shutdown();
 	}
-
-	ros::Duration(2.0).sleep();
-
-	ros::shutdown();
-}
 
 
 

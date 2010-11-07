@@ -1,18 +1,18 @@
 /*****************************************************
 Project : Maximus
-Version : 4.1
-Date    : 01/11/2010
-Author  : JBot
-Company : 
-Comments: 
+Version : 4.2
+Date : 01/11/2010
+Author : JBot
+Company :
+Comments:
 
 
-Chip type           : ATmega162
-Program type        : Application
-Clock frequency     : 14,745600 MHz
-Memory model        : Small
-External SRAM size  : 0
-Data Stack size     : 256
+Chip type : ATmega162
+Program type : Application
+Clock frequency : 14,745600 MHz
+Memory model : Small
+External SRAM size : 0
+Data Stack size : 256
  *****************************************************/
 
 #include <mega162.h>
@@ -20,23 +20,14 @@ Data Stack size     : 256
 #include <math.h>
 
 #define DEF
-// #define USE_IMU 
-#ifdef DEF
+// #define USE_IMU
 
-#define TICK_PER_MM_LEFT        91.143671935
-#define TICK_PER_MM_RIGHT       91.143671935  
-#define DIAMETER                328.0
+#define TICK_PER_MM_LEFT 91.143671935
+#define TICK_PER_MM_RIGHT 91.143671935
+#define DIAMETER 328.0
 
 #define TWOPI 6.2831853070
-#define RAD2DEG 57.2958	/* radians to degrees conversion */      
-
-#define VITESSE_MAX 160.0
-#define VITESSE_BASSE 10
-#define VITESSE_HAUTE 20
-#define ACCEL 5
-#define DECEL 5
-#define SENS_AVANT 1
-#define SENS_ARRIERE 0        
+#define RAD2DEG 57.2958 /* radians to degrees conversion */
 
 // Types of motor
 #define ALPHA_MOTOR 0
@@ -75,10 +66,10 @@ typedef struct {
 	double desired_distance;
 } RobotCommand;
 
-#define COMMAND_DONE            0
-#define PROCESSING_COMMAND      1
-#define WAITING_BEGIN           2
-#define ERROR                   3
+#define COMMAND_DONE 0
+#define PROCESSING_COMMAND 1
+#define WAITING_BEGIN 2
+#define ERROR 3
 
 long general_time_counter = 0;
 
@@ -90,29 +81,31 @@ motor delta_motor;
 robot maximus;
 
 RobotCommand bot_command_delta;
+RobotCommand prev_bot_command_delta;
 RobotCommand bot_command_alpha;
-
 
 volatile long left_cnt = 0;
 volatile long right_cnt = 0;
 
-
+/***********************/
+/* Odometry interrupts */
+/***********************/
 // External Interrupt 0 service routine
 interrupt [EXT_INT0] void ext_int0_isr(void)
 {
 	//#asm("cli")
 	if(PINA.0 == 1) {
 		if(PIND.2 == 1)
-			left_cnt++;
-		else
 			left_cnt--;
+		else
+			left_cnt++;
 	}
 	else {
 		if(PIND.2 == 0)
-			left_cnt++;
-		else
 			left_cnt--;
-	}           
+		else
+			left_cnt++;
+	}
 
 	//#asm("sei")
 }
@@ -122,15 +115,15 @@ interrupt [EXT_INT1] void ext_int1_isr(void)
 {
 	if(PINC.0 == 1) {
 		if(PIND.3 == 1)
-			right_cnt--;
-		else
 			right_cnt++;
+		else
+			right_cnt--;
 	}
 	else {
 		if(PIND.3 == 0)
-			right_cnt--;
-		else
 			right_cnt++;
+		else
+			right_cnt--;
 	}
 
 }
@@ -140,17 +133,17 @@ interrupt [PCINT0] void pin_change_isr0(void)
 {
 	if(PIND.2 == 1) {
 		if(PINA.0 == 1){
-			left_cnt--;
+			left_cnt++;
 		}
 		else
-			left_cnt++;
+			left_cnt--;
 	}
 	else {
 		if(PINA.0 == 0){
-			left_cnt--;
+			left_cnt++;
 		}
 		else
-			left_cnt++;
+			left_cnt--;
 	}
 
 }
@@ -160,18 +153,18 @@ interrupt [PCINT1] void pin_change_isr1(void)
 {
 	if(PIND.3 == 1) {
 		if(PINC.0 == 1)
-			right_cnt++;
-		else
 			right_cnt--;
+		else
+			right_cnt++;
 	}
 	else {
 		if(PINC.0 == 0)
-			right_cnt++;
-		else
 			right_cnt--;
+		else
+			right_cnt++;
 	}
 
-}  
+}
 
 #define RXB8 1
 #define TXB8 0
@@ -324,7 +317,7 @@ char getchar1(void)
 }
 #pragma used-
 // USART1 Transmitter buffer
-#define TX_BUFFER_SIZE1 128
+#define TX_BUFFER_SIZE1 64
 char tx_buffer1[TX_BUFFER_SIZE1];
 
 #if TX_BUFFER_SIZE1<256
@@ -376,36 +369,20 @@ int right_diff = 0;
 
 float total_distance = 0.0;
 
-float theta = 0.0;
-
-float X_pos = 0.0;
-float Y_pos = 0.0;  
-
-long des_left_speed = 0;
-long des_right_speed = 0;
-
-int actual_speed_left = 0;
-int actual_speed_right = 0;
-
-int actual_speed_alpha = 0;
-int actual_speed_delta = 0;
-
-unsigned int entier; 
+unsigned int entier;
 char display1, display2, display3, display4, display5, display6, display7;
 
-long lastError_left=0;
-long errSum_left=0; 
-long lastError_right=0;
-long errSum_right=0;
-
+/*************************/
+/* Global Init functions */
+/*************************/
 void init_Robot(robot *my_robot) {
-	my_robot->pos_X = 0.0;
-	my_robot->pos_Y = 0.0;
-	my_robot->theta = 0.0;
+	my_robot->pos_X = -700.0; // -700
+	my_robot->pos_Y = 700.0; // 700
+	my_robot->theta = PI/2; // PI/2
 	my_robot->yaw = 0.0;
 	my_robot->pitch = 0.0;
 	my_robot->roll = 0.0;
-	my_robot->yaw_offset = 0.0; 
+	my_robot->yaw_offset = 0.0;
 }
 
 void init_Command(RobotCommand *cmd) {
@@ -413,112 +390,6 @@ void init_Command(RobotCommand *cmd) {
 	cmd->current_distance = 0;
 	cmd->desired_distance = 0;
 }
-
-/*******************************/
-/*       IMU FUNCTIONS         */
-/*******************************/
-
-
-#ifdef USE_IMU
-void init_IMU(void) {        
-	//int checksum = 0;
-	// begining sequence
-	putchar1('s');
-	putchar1('n');
-	putchar1('p');
-	// Set active channels
-	putchar1(0x80);
-	putchar1(2);
-	putchar1(0x80);
-	putchar1(0x00);
-	// Checksum 595 = 0x253
-	//checksum = ((int)'s') + ((int)'n') + ((int)'p') + ((int)0x80) + ((int)2) + ((int)0x80);
-	putchar1(0x02);
-	putchar1(0x53);
-
-	// begining sequence
-	putchar1('s');
-	putchar1('n');
-	putchar1('p');
-	// Set silent mode
-	putchar1(0x81);
-	putchar1(0);
-	// Checksum 466 = 0x1D2
-	putchar1(0x01);
-	putchar1(0xD2);
-}
-
-void req_IMU_Data(void) {
-	// begining sequence
-	putchar1('s');
-	putchar1('n');
-	putchar1('p');
-	// Set silent mode
-	putchar1(0x01);
-	putchar1(0);
-	// Checksum 338 = 0x152
-	putchar1(0x01);
-	putchar1(0x52);
-}                       
-
-int receive_IMU_ACK(void) {
-	char test = 0;
-	getchar1(); // s
-	getchar1(); // n
-	getchar1(); // p
-	getchar1(); // 0xB7
-	test = getchar1(); // N
-	while(test > 0) {
-		getchar1(); // Data
-		test++;
-	}
-
-	getchar1(); // CheckSum
-	getchar1(); // CheckSum
-
-	return 0;
-}
-
-
-int receive_IMU_Data(robot *my_robot) {
-	int error = 0;
-	int yaw_sensor = 0;
-	char tmp = 0;
-	if(rx_counter1 < 11)
-		return -1;
-	if(getchar1() != 's'); // s
-	return -1;
-	getchar1(); // n
-	getchar1(); // p
-	if(getchar1() != 0xB7) // 0xB7
-		return -1;
-	getchar1(); // N
-	getchar1(); // Active channels
-	getchar1(); // Active channels
-
-	yaw_sensor = ((int)getchar1()) << 8; // Yaw
-	yaw_sensor = yaw_sensor + ((int)getchar1()); // Yaw
-
-	my_robot->yaw = ((float)yaw_sensor) * 0.0109863;
-
-	getchar1(); // CheckSum
-	getchar1(); // CheckSum
-
-	return error;
-}
-
-void init_robot_yaw_offset(robot *my_robot) {
-	req_IMU_Data();
-	delay_us(200);
-	receive_IMU_Data(&my_robot);
-	my_robot->yaw_offset = my_robot->yaw;
-}
-
-	void flush_IMU_input_buffer(void) {
-		while(rx_counter1 > 0)
-			getchar1();
-	}
-#endif
 
 void init_motors(void) {
 	/* Left motor initialization */
@@ -555,9 +426,9 @@ void init_motors(void) {
 	alpha_motor.cur_speed = 0;
 	alpha_motor.last_error = 0;
 	alpha_motor.error_sum = 0;
-	alpha_motor.kP = 600; 
-	alpha_motor.kI = 0;  
-	alpha_motor.kD = 100; 
+	alpha_motor.kP = 600;
+	alpha_motor.kI = 0;
+	alpha_motor.kD = 100;
 	alpha_motor.accel = 300;
 	alpha_motor.decel = 500;
 	alpha_motor.max_speed = 12000;
@@ -569,22 +440,21 @@ void init_motors(void) {
 	delta_motor.cur_speed = 0;
 	delta_motor.last_error = 0;
 	delta_motor.error_sum = 0;
-	delta_motor.kP = 600; 
-	delta_motor.kI = 0; 
-	delta_motor.kD = 100; 
+	delta_motor.kP = 600;
+	delta_motor.kI = 0;
+	delta_motor.kD = 100;
 	delta_motor.accel = 300;
 	delta_motor.decel = 500;
 	delta_motor.max_speed = 20000;
-	delta_motor.distance = 0.0;       
-}  
-#endif
+	delta_motor.distance = 0.0;
+}
 
 /*******************************/
-/*    ROBO CLAW FUNCTIONS      */
+/* ROBO CLAW FUNCTIONS */
 /*******************************/
 #ifdef DEF
 // Used to change the speed value of motor 1
-void write_RoboClaw_speed_M1(char addr, signed long speed) { 
+void write_RoboClaw_speed_M1(char addr, signed long speed) {
 	char checkSUM;
 	checkSUM = (addr + 35 + ((char) ((speed >> 24) & 0xFF)) + ((char) ((speed >> 16) & 0xFF)) + ((char) ((speed >> 8) & 0xFF)) + ((char) (speed & 0xFF)) ) & 0x7F;
 	putchar1(addr);
@@ -594,11 +464,11 @@ void write_RoboClaw_speed_M1(char addr, signed long speed) {
 	putchar1( ((char) ((speed >> 8) & 0xFF)) );
 	putchar1( ((char) (speed & 0xFF)) );
 
-	putchar1(checkSUM);        
+	putchar1(checkSUM);
 }
 
 // Used to change the speed value of motor 2
-void write_RoboClaw_speed_M2(char addr, signed long speed) { 
+void write_RoboClaw_speed_M2(char addr, signed long speed) {
 	char checkSUM;
 	checkSUM = (addr + 36 + ((char) ((speed >> 24) & 0xFF)) + ((char) ((speed >> 16) & 0xFF)) + ((char) ((speed >> 8) & 0xFF)) + ((char) (speed & 0xFF)) ) & 0x7F;
 	putchar1(addr);
@@ -608,11 +478,11 @@ void write_RoboClaw_speed_M2(char addr, signed long speed) {
 	putchar1( ((char) ((speed >> 8) & 0xFF)) );
 	putchar1( ((char) (speed & 0xFF)) );
 
-	putchar1(checkSUM);        
+	putchar1(checkSUM);
 }
 
 // Used to change the speed value of motors 1 and 2
-void write_RoboClaw_speed_M1M2(char addr, signed long speedM1, signed long speedM2) { 
+void write_RoboClaw_speed_M1M2(char addr, signed long speedM1, signed long speedM2) {
 	char checkSUM;
 	checkSUM = (addr + 37 + ((char) ((speedM1 >> 24) & 0xFF)) + ((char) ((speedM1 >> 16) & 0xFF)) + ((char) ((speedM1 >> 8) & 0xFF)) + ((char) (speedM1 & 0xFF)) + ((char) ((speedM2 >> 24) & 0xFF)) + ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) + ((char) (speedM2 & 0xFF)) ) & 0x7F;
 	putchar1(addr);
@@ -627,11 +497,11 @@ void write_RoboClaw_speed_M1M2(char addr, signed long speedM1, signed long speed
 	putchar1( ((char) ((speedM2 >> 8) & 0xFF)) );
 	putchar1( ((char) (speedM2 & 0xFF)) );
 
-	putchar1(checkSUM);        
+	putchar1(checkSUM);
 }
 
 // Used to change the speed value of motor 1 and 2 during a specific distance
-void write_RoboClaw_speed_dist_M1M2(char addr, signed long speedM1, signed long distanceM1, signed long speedM2, signed long distanceM2) { 
+void write_RoboClaw_speed_dist_M1M2(char addr, signed long speedM1, signed long distanceM1, signed long speedM2, signed long distanceM2) {
 	char checkSUM;
 	checkSUM = (addr + 43 + ((char) ((speedM1 >> 24) & 0xFF)) + ((char) ((speedM1 >> 16) & 0xFF)) + ((char) ((speedM1 >> 8) & 0xFF)) + ((char) (speedM1 & 0xFF)) + ((char) ((speedM2 >> 24) & 0xFF)) + ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) + ((char) (speedM2 & 0xFF)) + ((char) ((distanceM1 >> 24) & 0xFF)) + ((char) ((distanceM1 >> 16) & 0xFF)) + ((char) ((distanceM1 >> 8) & 0xFF)) + ((char) (distanceM1 & 0xFF)) + ((char) ((distanceM2 >> 24) & 0xFF)) + ((char) ((distanceM2 >> 16) & 0xFF)) + ((char) ((distanceM2 >> 8) & 0xFF)) + ((char) (distanceM2 & 0xFF)) + 1) & 0x7F;
 	putchar1(addr);
@@ -658,11 +528,11 @@ void write_RoboClaw_speed_dist_M1M2(char addr, signed long speedM1, signed long 
 
 	putchar1(1);
 
-	putchar1(checkSUM);        
+	putchar1(checkSUM);
 }
 
 // Used to change the speed value of motor 1 and 2 during a specific distance with a specific acceleration
-void write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM1, signed long distanceM1, signed long speedM2, signed long distanceM2) { 
+void write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM1, signed long distanceM1, signed long speedM2, signed long distanceM2) {
 	char checkSUM;
 	checkSUM = (addr + 46 + ((char) ((accel >> 24) & 0xFF)) + ((char) ((accel >> 16) & 0xFF)) + ((char) ((accel >> 8) & 0xFF)) + ((char) (accel & 0xFF)) + ((char) ((speedM1 >> 24) & 0xFF)) + ((char) ((speedM1 >> 16) & 0xFF)) + ((char) ((speedM1 >> 8) & 0xFF)) + ((char) (speedM1 & 0xFF)) + ((char) ((speedM2 >> 24) & 0xFF)) + ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) + ((char) (speedM2 & 0xFF)) + ((char) ((distanceM1 >> 24) & 0xFF)) + ((char) ((distanceM1 >> 16) & 0xFF)) + ((char) ((distanceM1 >> 8) & 0xFF)) + ((char) (distanceM1 & 0xFF)) + ((char) ((distanceM2 >> 24) & 0xFF)) + ((char) ((distanceM2 >> 16) & 0xFF)) + ((char) ((distanceM2 >> 8) & 0xFF)) + ((char) (distanceM2 & 0xFF)) + 1) & 0x7F;
 
@@ -696,66 +566,13 @@ void write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM
 
 	putchar1(1);
 
-	putchar1(checkSUM);        
-}
-
-// Read motor 1 value (doesn't work)
-void read_RoboClaw_M1(char addr) { 
-	char checkSUM, char1, char2, char3, char4;
-	long my_long = 0;
-
-	while(rx_counter1 > 0)
-		getchar1();
-
-
-	checkSUM = (addr + 16) & 0x7F;
-
-	putchar1(addr);
-	putchar1(16);
-
-	putchar1(checkSUM);     
-
-	delay_ms(20);
-
-	char1 = getchar1();
-	char2 = getchar1();
-	char3 = getchar1();
-	char4 = getchar1();
-
-	my_long = ((long)char4 << 24) + ((long)char3 << 16) + ((long)char2 << 8) + (long)char1;
-	getchar1();
-	getchar1();
-
-	entier = (unsigned int) fabs(my_long); 
-	display6 = (entier % 10) +48;
-	entier = (unsigned int) (entier / 10);
-	display5 = (entier % 10) +48;
-	entier = (unsigned int) (entier / 10);    
-	display4 = (entier % 10) +48;
-	entier = (unsigned int) (entier / 10);     
-	display3 = (entier % 10) +48;
-	entier = (unsigned int) (entier / 10); 
-	display2 = (entier % 10) +48; 
-	entier = (unsigned int) (entier / 10);
-	display1 = (entier % 10) +48;
-	putchar('M');
-	if(my_long < 0)
-		putchar('-');    
-	putchar(display1);  
-	putchar(display2);
-	putchar(display3);
-	putchar(display4);
-	putchar(display5);
-	putchar(display6);
-
-
+	putchar1(checkSUM);
 }
 #endif
 
 /*******************************/
-/*    CONVERSION FUNCTIONS     */
+/* CONVERSION FUNCTIONS */
 /*******************************/
-#ifdef DEF
 signed long convert_dist2ticks(signed long distance) {
 	return (distance * TICK_PER_MM_RIGHT);
 }
@@ -763,20 +580,15 @@ signed long convert_dist2ticks(signed long distance) {
 signed long convert_ticks2dist(signed long ticks) {
 	return (ticks / TICK_PER_MM_RIGHT);
 }
-#endif
+
 
 void move_motors(void) {
 	write_RoboClaw_speed_M1M2(128, delta_motor.des_speed - alpha_motor.des_speed, delta_motor.des_speed + alpha_motor.des_speed);
-} 
+}
 
 /*******************************/
-/*   MOTION CONTROL FUNCTIONS  */
+/* MOTION CONTROL FUNCTIONS */
 /*******************************/
-#ifdef DEF
-
-
-#endif
-
 void set_new_command(RobotCommand *cmd, long distance) {
 	cmd->state = WAITING_BEGIN;
 	//#asm("cli") // disable interrupts
@@ -784,6 +596,110 @@ void set_new_command(RobotCommand *cmd, long distance) {
 	cmd->desired_distance = distance;
 	//#asm("sei") // enable interrupts
 }
+
+long compute_position_PID(RobotCommand *cmd, motor *used_motor) {
+	long P,I,D;
+	long errDif, err;
+	long tmp = 0;
+
+	if( cmd->state == WAITING_BEGIN) {
+		cmd->state = PROCESSING_COMMAND;
+	}
+
+	if(used_motor->type == ALPHA_MOTOR)
+		err = cmd->desired_distance*10 - cmd->current_distance*10*RAD2DEG;
+	else    
+		err = cmd->desired_distance - cmd->current_distance;
+
+	used_motor->error_sum += err; //Somme les erreurs depuis le debut
+	if(used_motor->error_sum > 10)
+		used_motor->error_sum = 10;
+	if(used_motor->error_sum < -10)
+		used_motor->error_sum = -10;
+
+	errDif = err - used_motor->last_error; //Calcule la variation de l'erreur
+
+	used_motor->last_error = err;
+
+	P = err * used_motor->kP; //Proportionnelle
+	I = used_motor->error_sum * used_motor->kI; //Integrale
+	D = errDif * used_motor->kD; //Derivee
+
+	tmp = (P + I + D);
+
+	if(tmp > (used_motor->des_speed + used_motor->accel))
+		tmp = (used_motor->des_speed + used_motor->accel);
+	else if(tmp < (used_motor->des_speed - used_motor->accel))
+		tmp = (used_motor->des_speed - used_motor->accel);
+
+	if(tmp > (used_motor->max_speed))
+		tmp = (used_motor->max_speed);
+	if(tmp < -(used_motor->max_speed))
+		tmp = -(used_motor->max_speed);
+
+	if( (cmd->state == PROCESSING_COMMAND) && (abs(err) < 8) &&  (abs(errDif) < 8) ) {
+		cmd->state = COMMAND_DONE;           
+	}
+
+	return tmp;
+}
+
+
+double distance_coord(robot *my_robot, double x1, double y1) {
+	double x = 0;
+	x = sqrt( pow(fabs(x1-my_robot->pos_X),2) + pow(fabs(y1-my_robot->pos_Y),2) );        
+	return x;
+}
+
+double angle_coord(robot *my_robot, double x1, double y1) {
+	double angletodo =0;
+	if( (x1 < my_robot->pos_X) && (y1 < my_robot->pos_Y) ) { 
+		angletodo = -PI/2 - atan(fabs( (x1 - my_robot->pos_X) / (y1 - my_robot->pos_Y) ) );
+	}
+	else if( (x1 > my_robot->pos_X) && (y1 < my_robot->pos_Y) ) { 
+		angletodo = - atan(fabs( (y1 - my_robot->pos_Y) / (x1 - my_robot->pos_X) ) );
+	}
+	else if( (x1 > my_robot->pos_X) && (y1 > my_robot->pos_Y) ) { 
+		angletodo = atan(fabs( (y1 - my_robot->pos_Y) / (x1 - my_robot->pos_X) ) );
+	}
+	else if( (x1 < my_robot->pos_X) && (y1 > my_robot->pos_Y) ) { 
+		angletodo = PI/2 + atan(fabs( (x1 - my_robot->pos_X) / (y1 - my_robot->pos_Y) ) );
+	}
+	else if( (x1 < my_robot->pos_X) && (y1 == my_robot->pos_Y) ) { // 
+		angletodo = -PI;
+	}
+	else if( (x1 > my_robot->pos_X) && (y1 == my_robot->pos_Y) ) { // 
+		angletodo = 0;
+	}
+	else if( (x1 == my_robot->pos_X) && (y1 < my_robot->pos_Y) ) { // 
+		angletodo = -PI/2;
+	}
+	else if( (x1 == my_robot->pos_X) && (y1 > my_robot->pos_Y) ) { // 
+		angletodo = PI/2;
+	}
+	else angletodo = 0;  
+
+	angletodo = angletodo - my_robot->theta;
+
+	if(angletodo > PI)
+		angletodo = angletodo - 2*PI;
+	if(angletodo < -PI)
+		angletodo = 2*PI + angletodo;
+
+	return angletodo;
+}
+
+/* New version */
+void goto_xy(double x, double y) {  
+	double ang, dist;
+
+	ang = angle_coord(&maximus, x, y)*RAD2DEG;
+	set_new_command(&bot_command_alpha, ang);
+
+	dist = distance_coord(&maximus, x, y);
+	set_new_command(&prev_bot_command_delta, dist);
+}
+
 
 
 
@@ -794,92 +710,21 @@ void update_motor(motor *used_motor) {
 			break;
 		case RIGHT_MOTOR :
 			used_motor->cur_speed = right_diff;
-			break;        
+			break;
 		case ALPHA_MOTOR :
 			used_motor->cur_speed = left_diff - right_diff;
 			break;
 		case DELTA_MOTOR :
 			used_motor->cur_speed = (left_diff + right_diff)/2;
-			break;        
+			break;
 		default : break;
 	}
-}
-
-long computePositionPID_delta(long error, long *last_error, long *error_sum) {
-	long P,I,D; 
-	long errDif;
-	long tmp = 0;
-
-	*error_sum += error;                 //Somme les erreurs depuis le début 
-	if(*error_sum > 10)
-		*error_sum = 10;
-	if(*error_sum < -10)     
-		*error_sum = -10;       
-	errDif = error - *last_error;      //Calcule la variation de l'erreur
-
-	*last_error = error;
-
-	P = error * delta_motor.kP;                  //Proportionnelle
-	I = *error_sum * delta_motor.kI;                 //Intégrale
-	D = errDif * delta_motor.kD;                 //Dérivée
-
-	tmp = (P + I + D);
-
-	if(tmp > (delta_motor.des_speed + delta_motor.accel))
-		tmp = (delta_motor.des_speed + delta_motor.accel);
-	else if(tmp < (delta_motor.des_speed - delta_motor.accel))
-		tmp = (delta_motor.des_speed - delta_motor.accel);
-
-	if(tmp > (delta_motor.max_speed))
-		tmp = (delta_motor.max_speed);
-	if(tmp < -(delta_motor.max_speed))
-		tmp = -(delta_motor.max_speed);
-
-	return tmp;
-
-
-}
-
-long computePositionPID_alpha(long error, long *last_error, long *error_sum) {
-	long P,I,D; 
-	long errDif;
-	long tmp = 0;
-
-	*error_sum += error;                 //Somme les erreurs depuis le début 
-	if(*error_sum > 10)
-		*error_sum = 10;
-	if(*error_sum < -10)     
-		*error_sum = -10;       
-	errDif = error - *last_error;      //Calcule la variation de l'erreur
-
-	*last_error = error;
-
-	P = error * alpha_motor.kP;                  //Proportionnelle
-	I = *error_sum * alpha_motor.kI;                 //Intégrale
-	D = errDif * alpha_motor.kD;                 //Dérivée
-
-	tmp = (P + I + D);
-
-	if(tmp > (alpha_motor.des_speed + alpha_motor.accel))
-		tmp = (alpha_motor.des_speed + alpha_motor.accel);
-	else if(tmp < (alpha_motor.des_speed - alpha_motor.accel))
-		tmp = (alpha_motor.des_speed - alpha_motor.accel);
-
-	if(tmp > (alpha_motor.max_speed))
-		tmp = (alpha_motor.max_speed);
-	if(tmp < -(alpha_motor.max_speed))
-		tmp = -(alpha_motor.max_speed);
-
-	return tmp;
-
-
 }
 
 
 /*************************************/
 /* Compute the position of the robot */
 /*************************************/
-#ifdef DEF
 void get_Odometers(void) {
 	long left_wheel = 0;
 	long right_wheel = 0;
@@ -891,7 +736,7 @@ void get_Odometers(void) {
 
 
 	left_wheel = left_cnt;
-	right_wheel = right_cnt; 
+	right_wheel = right_cnt;
 
 	left_diff = last_left - left_wheel;
 	right_diff = last_right - right_wheel;
@@ -906,46 +751,50 @@ void get_Odometers(void) {
 	total_distance += distance;
 	bot_command_delta.current_distance += distance;
 
-	maximus.theta += (left_mm - right_mm) / DIAMETER;
-	bot_command_alpha.current_distance += (left_mm - right_mm) / DIAMETER;
+	maximus.theta += (right_mm - left_mm) / DIAMETER;
+	bot_command_alpha.current_distance += (right_mm - left_mm) / DIAMETER;
 
 	if( maximus.theta > PI )
 		maximus.theta -= TWOPI;
 	if( maximus.theta < (-PI) )
-		maximus.theta += TWOPI;     
+		maximus.theta += TWOPI;
 
-	maximus.pos_X += distance * sin(maximus.theta);
-	maximus.pos_Y += distance * cos(maximus.theta);
-
-
-#ifdef USE_IMU        
-	req_IMU_Data();
-	delay_us(1000);
-	receive_IMU_Data(&maximus);
-#endif
+	maximus.pos_Y += distance * sin(maximus.theta);
+	maximus.pos_X += distance * cos(maximus.theta);
 
 	update_motor(&left_motor);
 	update_motor(&right_motor);
 	update_motor(&alpha_motor);
 	update_motor(&delta_motor);
-
-
 }
-#endif
+
 
 void do_motion_control(void) {
 	// PID distance
-	delta_motor.des_speed = computePositionPID_delta( (bot_command_delta.current_distance - bot_command_delta.desired_distance), &lastError_left, &errSum_left);
+	if( (bot_command_alpha.state == WAITING_BEGIN) || (bot_command_alpha.state == PROCESSING_COMMAND) ) { // If alpha motor have not finished its movement 
+
+	}
+	else {
+		if( (bot_command_delta.state != PROCESSING_COMMAND) && (prev_bot_command_delta.state == WAITING_BEGIN) ) {
+			prev_bot_command_delta.state = PROCESSING_COMMAND;
+			set_new_command(&bot_command_delta, prev_bot_command_delta.desired_distance);
+		}
+	}    
+	delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
+
 
 	// PID angle
-	alpha_motor.des_speed = computePositionPID_alpha( ( ( bot_command_alpha.desired_distance*10 - (bot_command_alpha.current_distance*RAD2DEG*10) )), &lastError_right, &errSum_right);
-}  
+	alpha_motor.des_speed = compute_position_PID(&bot_command_alpha, &alpha_motor);
+	if( bot_command_alpha.state == WAITING_BEGIN) {
+		bot_command_alpha.state = PROCESSING_COMMAND;
+	}
+
+}
 
 
 /***************************/
 /* ROS Interface Functions */
 /***************************/
-#ifdef DEF
 void angular_from_ROS(char sign) {
 	signed long tmp = 0;
 
@@ -954,7 +803,7 @@ void angular_from_ROS(char sign) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
-
+	getchar();
 	if(sign == 0) // negative
 		alpha_motor.des_speed = -tmp;
 	else
@@ -969,12 +818,12 @@ void linear_from_ROS(char sign) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
-
+	getchar();
 	if(sign == 0) // negative
-		delta_motor.des_speed = -tmp;  
+		delta_motor.des_speed = -tmp;
 	else
 		delta_motor.des_speed = tmp;
-}   
+}
 
 void change_alphakP(void) {
 	signed long tmp = 0;
@@ -984,9 +833,9 @@ void change_alphakP(void) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
-
-	alpha_motor.kP = tmp;        
-}    
+	getchar();
+	alpha_motor.kP = tmp;
+}
 
 void change_alphakD(void) {
 	signed long tmp = 0;
@@ -996,8 +845,8 @@ void change_alphakD(void) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
-
-	alpha_motor.kD = tmp;        
+	getchar();
+	alpha_motor.kD = tmp;
 }
 
 void change_alphakI(void) {
@@ -1008,8 +857,8 @@ void change_alphakI(void) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
-
-	alpha_motor.kI = tmp;        
+	getchar();
+	alpha_motor.kI = tmp;
 }
 
 
@@ -1021,9 +870,9 @@ void change_deltakP(void) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
-
-	delta_motor.kP = tmp;        
-}    
+	getchar();
+	delta_motor.kP = tmp;
+}
 
 void change_deltakD(void) {
 	signed long tmp = 0;
@@ -1033,8 +882,8 @@ void change_deltakD(void) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
-
-	delta_motor.kD = tmp;        
+	getchar();
+	delta_motor.kD = tmp;
 }
 
 void change_deltakI(void) {
@@ -1045,27 +894,42 @@ void change_deltakI(void) {
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
 	tmp = (tmp * 10) + (getchar() - 48);
+	getchar();
+	delta_motor.kI = tmp;
+}   
 
-	delta_motor.kI = tmp;        
+void get_goal_from_ROS(void) {
+	signed long x = 0, y = 0;
+
+	x = (x * 10) + (getchar() - 48);
+	x = (x * 10) + (getchar() - 48);
+	x = (x * 10) + (getchar() - 48);
+	x = x*(-10);
+
+	y = (y * 10) + (getchar() - 48);
+	y = (y * 10) + (getchar() - 48);
+	y = (y * 10) + (getchar() - 48);
+	y = y*10;
+
+	goto_xy( ((double)x/2), ((double)y/2) );
 }
-#endif
 
 /*************************************/
 /* Basic movement functions for test */
 /*************************************/
-#ifdef DEF
-void tourner_droite(void){ 
+
+void tourner_droite(void){
 	/*
 	 */
 }
 
 void tourner_gauche(void){
-	/*        
+	/*
 	 */
 }
 
 void avancer(void){
-	/*        
+	/*
 	 */
 }
 
@@ -1078,7 +942,7 @@ void stop(void){
 	/*
 	 */
 }
-#endif 
+
 
 
 
@@ -1089,18 +953,14 @@ interrupt [TIM0_OVF] void timer0_ovf_isr(void)
 	get_Odometers();
 	do_motion_control();
 	if(output_ON == 1)
-		move_motors(); // Update the motor speed   
+		move_motors(); // Update the motor speed
 }
 
 // Timer 1 overflow interrupt service routine
 interrupt [TIM1_OVF] void timer1_ovf_isr(void)
 {
 #asm("sei") // enable interrupts
-	//general_time_counter++; // Update the software time
-	//do_position_control_and_ramp(&bot_command, general_time_counter);
 
-	//if(output_ON == 1)
-	//        move_motors(); // Update the motor speed
 }
 
 
@@ -1125,32 +985,32 @@ void main(void)
 #ifdef DEF
 	// Input/Output Ports initialization
 	// Port A initialization
-	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
-	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T 
+	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In
+	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T
 	PORTA=0x00;
 	DDRA=0x00;
 
 	// Port B initialization
-	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=Out 
-	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T 
+	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=Out
+	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T
 	PORTB=0x00;
 	DDRB=0x01;
 
 	// Port C initialization
-	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
-	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T 
+	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In
+	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T
 	PORTC=0x00;
 	DDRC=0x00;
 
 	// Port D initialization
-	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
-	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T 
+	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In
+	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T
 	PORTD=0x00;
 	DDRD=0x00;
 
 	// Port E initialization
-	// Func2=In Func1=In Func0=In 
-	// State2=T State1=T State0=T 
+	// Func2=In Func1=In Func0=In
+	// State2=T State1=T State0=T
 	PORTE=0x00;
 	DDRE=0x00;
 
@@ -1231,19 +1091,7 @@ void main(void)
 	PCMSK1=0x01;
 	MCUCR=0x05;
 	EMCUCR=0x00;
-	GIFR=0xD8;  
-	// External Interrupt(s) initialization
-	// INT0: On
-	// INT0 Mode: Any change
-	// INT1: On
-	// INT1 Mode: Any change
-	// INT2: Off
-	// Interrupt on any change on pins PCINT0-7: Off
-	// Interrupt on any change on pins PCINT8-15: Off
-	//GICR|=0xC0;
-	//MCUCR=0x05;
-	//EMCUCR=0x00;
-	//GIFR=0xC0;
+	GIFR=0xD8;
 
 	// Timer(s)/Counter(s) Interrupt(s) initialization
 	TIMSK=0x82;
@@ -1280,20 +1128,11 @@ void main(void)
 #endif
 	write_RoboClaw_speed_M1M2(128, 0, 0);
 
-#ifdef USE_IMU
-	init_IMU();  		// Init the IMU
-	flush_IMU_input_buffer();// Flush all previous messages of the IMU
-#endif
+	init_motors(); // Init motors
+	init_Robot(&maximus); // Init robot status
 
-	init_motors();		// Init motors
-	init_Robot(&maximus);	// Init robot status 
-
-	init_Command(&bot_command_delta);     // Init robot command
-	init_Command(&bot_command_alpha);     // Init robot command
-
-#ifdef USE_IMU
-	init_robot_yaw_offset(&maximus);// Init yaw starting point
-#endif
+	init_Command(&bot_command_delta); // Init robot command
+	init_Command(&bot_command_alpha); // Init robot command
 
 	// Global enable interrupts
 #asm("sei")
@@ -1312,67 +1151,67 @@ void main(void)
 		if(output_ON == 1) {
 
 			/* Display for ROS */
-			entier = (unsigned int) fabs(maximus.pos_X*10); 
+			entier = (unsigned int) fabs(maximus.pos_X*10);
 			display6 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display5 = (entier % 10) +48;
-			entier = (unsigned int) (entier / 10);    
+			entier = (unsigned int) (entier / 10);
 			display4 = (entier % 10) +48;
-			entier = (unsigned int) (entier / 10);     
+			entier = (unsigned int) (entier / 10);
 			display3 = (entier % 10) +48;
-			entier = (unsigned int) (entier / 10); 
-			display2 = (entier % 10) +48; 
+			entier = (unsigned int) (entier / 10);
+			display2 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display1 = (entier % 10) +48;
 			putchar('x');
 			if(maximus.pos_X < 0)
-				putchar('-');    
-			putchar(display1);  
+				putchar('-');
+			putchar(display1);
 			putchar(display2);
 			putchar(display3);
 			putchar(display4);
 			putchar(display5);
 			putchar(display6);
 
-			entier = (unsigned int) fabs(maximus.pos_Y*10); 
+			entier = (unsigned int) fabs(maximus.pos_Y*10);
 			display6 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display5 = (entier % 10) +48;
-			entier = (unsigned int) (entier / 10);        
+			entier = (unsigned int) (entier / 10);
 			display4 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display3 = (entier % 10) +48;
-			entier = (unsigned int) (entier / 10); 
-			display2 = (entier % 10) +48; 
+			entier = (unsigned int) (entier / 10);
+			display2 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display1 = (entier % 10) +48;
 			putchar('y');
 			if(maximus.pos_Y < 0)
-				putchar('-');    
-			putchar(display1);  
+				putchar('-');
+			putchar(display1);
 			putchar(display2);
 			putchar(display3);
 			putchar(display4);
 			putchar(display5);
 			putchar(display6);
 
-			entier = (unsigned int) fabs(maximus.theta * 10000); 
+			entier = (unsigned int) fabs(maximus.theta * 10000);
 			//entier = (unsigned int) fabs(maximus.theta * RAD2DEG);
 			display6 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display5 = (entier % 10) +48;
-			entier = (unsigned int) (entier / 10);    
+			entier = (unsigned int) (entier / 10);
 			display4 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display3 = (entier % 10) +48;
-			entier = (unsigned int) (entier / 10); 
-			display2 = (entier % 10) +48; 
+			entier = (unsigned int) (entier / 10);
+			display2 = (entier % 10) +48;
 			entier = (unsigned int) (entier / 10);
 			display1 = (entier % 10) +48;
 			putchar('t');
 			if(maximus.theta < 0)
-				putchar('-');    
-			putchar(display1);  
+				putchar('-');
+			putchar(display1);
 			putchar(display2);
 			putchar(display3);
 			putchar(display4);
@@ -1385,83 +1224,57 @@ void main(void)
 
 		}
 
-		if(rx_counter0 >= (1+5)){
+		if(rx_counter0 >= (1+6)){
 			serial_command = getchar();
-			switch(serial_command) { 
+			switch(serial_command) {
 				case 'a' :// positive
 					angular_from_ROS(1);
 					break;
 				case 'A' : // negative
 					angular_from_ROS(0);
-					break; 
+					break;
 				case 'l' :
 					linear_from_ROS(1);
 					break;
 				case 'L' :
 					linear_from_ROS(0);
 					break;
-				case 'T' :
-					start = 1;                                                                        
-					mycounter = 0;
-					//compute_distance_ramp(&bot_command, &delta_motor, convert_dist2ticks(350), general_time_counter);                
-					getchar();                                                                                         
-					getchar();
-					getchar();
-					getchar();
-					getchar();
-					break;
-				case 'P' :
-					change_alphakP();
-					break;
-				case 'D' :
-					change_alphakD();
-					break;
-				case 'I' :
-					change_alphakI();
-					break;
-				case 'p' :
-					change_deltakP();
-					break;
-				case 'd' :
-					change_deltakD();
-					break;
-				case 'i' :
-					change_deltakI();
+					// case 'T' :
+					// start = 1;
+					// mycounter = 0;
+					// //compute_distance_ramp(&bot_command, &delta_motor, convert_dist2ticks(350), general_time_counter);
+					// getchar();
+					// getchar();
+					// getchar();
+					// getchar();
+					// getchar();
+					// getchar();
+					// break;
+					// case 'P' :
+					// change_alphakP();
+					// break;
+					// case 'D' :
+					// change_alphakD();
+					// break;
+					// case 'I' :
+					// change_alphakI();
+					// break;
+					// case 'p' :
+					// change_deltakP();
+					// break;
+					// case 'd' :
+					// change_deltakD();
+					// break;
+					// case 'i' :
+					// change_deltakI();
+					// break;
+				case 'G' :
+					get_goal_from_ROS();;
 					break;
 
 			}
 		}
 
-		if(start == 1) {
-			if(mycounter == 0) {
-				set_new_command(&bot_command_delta, -700);
-			}        
-			if(mycounter == 100) {
-				set_new_command(&bot_command_alpha, 90);
-			}        
-			if(mycounter == 200) {
-				set_new_command(&bot_command_delta, -350);
-			}        
-			if(mycounter == 300) {
-				set_new_command(&bot_command_alpha, 90);   
-			}        
-			if(mycounter == 400) {
-				set_new_command(&bot_command_delta, -700);
-			}        
-			if(mycounter == 500) {
-				set_new_command(&bot_command_alpha, 90);               
-			}        
-			if(mycounter == 600) {
-				set_new_command(&bot_command_delta, -350);
-			}        
-			if(mycounter == 700){
-				set_new_command(&bot_command_alpha, 90);
-				start = 0;
-			}
-
-			mycounter = mycounter + 1;
-		}
 
 	};
-}
-
+} 

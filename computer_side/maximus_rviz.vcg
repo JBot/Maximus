@@ -2,7 +2,12 @@ Background\ ColorR=0
 Background\ ColorG=0
 Background\ ColorB=0
 Fixed\ Frame=/map
-Target\ Frame=/maximus_robot_tf
+Target\ Frame=/map
+Goal.Axes\ Length=0.03
+Goal.Axes\ Radius=0.01
+Goal.Enabled=1
+Goal.Shape=1
+Goal.Topic=/maximus_goal
 Grid.Alpha=0.5
 Grid.Cell\ Size=0.35
 Grid.ColorR=0.5
@@ -39,6 +44,10 @@ Laser\ Scan..IntensityMin\ ColorR=0
 Laser\ Scan..IntensityMin\ ColorG=0
 Laser\ Scan..IntensityMin\ ColorB=0
 Laser\ Scan..IntensityMin\ Intensity=0
+Map.Alpha=0.6
+Map.Draw\ Behind=0
+Map.Enabled=1
+Map.Topic=/map
 Markers.Enabled=0
 Markers.Marker\ Topic=/visualization_marker
 Path.Alpha=1
@@ -59,11 +68,11 @@ Robot\ Model.Robot\ Description=/maximus_robot_tf
 Robot\ Model.TF\ Prefix=
 Robot\ Model.Update\ Interval=0
 Robot\ Model.Visual\ Enabled=1
-Tool\ 2D\ Nav\ GoalTopic=goal
+Tool\ 2D\ Nav\ GoalTopic=maximus_goal
 Tool\ 2D\ Pose\ EstimateTopic=initialpose
 Camera\ Type=rviz::OrbitViewController
-Camera\ Config=0.86337 1.61371 1.70113 0 0 0
-Property\ Grid\ State=selection=;expanded=.Global Options,Robot Model.Enabled.Robot Model.StatusTopStatus,Robot Model.Enabled.Robot: Robot ModelLinks,Markers.Enabled.Markers.StatusTopStatus,Markers.Enabled.Markers.Namespaces,Laser Scan.Enabled.Laser Scan.StatusTopStatus;scrollpos=0,0;splitterpos=125,266;ispageselected=1
+Camera\ Config=0.664781 3.12935 2.48269 -1.09082 -0.353032 0.623177
+Property\ Grid\ State=selection=;expanded=.Global Options,Robot Model.Enabled.Robot Model.StatusTopStatus,Robot Model.Enabled.Robot: Robot ModelLinks,Markers.Enabled.Markers.StatusTopStatus,Markers.Enabled.Markers.Namespaces,Laser Scan.Enabled.Laser Scan.StatusTopStatus;scrollpos=0,0;splitterpos=133,266;ispageselected=1
 [Display0]
 Name=Grid
 Package=rviz
@@ -88,3 +97,11 @@ ClassName=rviz::MarkerDisplay
 Name=Laser Scan
 Package=rviz
 ClassName=rviz::LaserScanDisplay
+[Display6]
+Name=Goal
+Package=rviz
+ClassName=rviz::PoseDisplay
+[Display7]
+Name=Map
+Package=rviz
+ClassName=rviz::MapDisplay
