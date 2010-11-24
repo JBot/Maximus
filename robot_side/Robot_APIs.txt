@@ -1,0 +1,39 @@
+List of the different communication protocols.
+
+API for the communication with the "Motion_Control" module :
+- Protocole : 
+    Serial TTL @ 115200 bauds
+- To send the initial position in X :
+    write in the serial port : "Xsxxxxxx" where xxxxxx is the x coordinate in 1/10th of millimeter and s is the sign (so + or -)
+- To send the initial position in Y :
+    write in the serial port : "Ysyyyyyy" where yyyyyy is the y coordinate in 1/10th of millimeter and s is the sign (so + or -)
+- To send the initial position in Alpha :
+    write in the serial port : "Asaaaaaa" where aaaaaa is the a coordinate in 1/1000th of degree and s is the sign (so + or -)
+- To send a new goal to reach :
+    write in the serial port : "Gsxxxxxxsyyyyyy" where xxxxxx is the x coordinate in 1/10th of millimeter, yyyyyy is the y coordinate in 1/10th of millimeter and s is the sign (so + or -)
+- Datas sent by the module :
+    "'x'(s)xxxxxx'y'(s)yyyyyy't'(s)tttttt" every 50 ms
+
+
+API for the communication with the "Lifter" module :
+- Protocole : 
+    Serial TTL @ 115200 bauds
+- To grip the pawn :
+    write in the serial port : "G"
+- To release the pawn :
+    write in the serial port : "R"
+- To lift up the lifter :
+    write in the serial port : "U"
+- To lift down the lifter :
+    write in the serial port : "D"
+    
+
+API for the communication with the "ARM_module" :
+- Protocole : 
+    Serial TTL @ 115200 bauds
+- To send a new goal to reach :
+    write in the serial port : "Gsxxxxxxsyyyyyyszzzzzz" where xxxxxx is the x coordinate in 1/10th of millimeter, yyyyyy is the y coordinate in 1/10th of millimeter, zzzzzz is the z coordinate in 1/10th of millimeter and s is the sign (so + or -)
+
+    
+
+

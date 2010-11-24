@@ -18,3 +18,6 @@ ROS packages (for debug and robot's state vizualisation) :
 
 - computer_side/maximus_joy.launch => script to launch all the packages (rviz, joy, maximus).
 
+- computer_side/mymap.yaml => map_server to print the map in rviz.
+
+- computer_side/eurobot2011map.png => map of the field.
