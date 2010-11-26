@@ -19,6 +19,7 @@ Clock frequency : 16,00 MHz
 #include <avr/interrupt.h>
 #include <math.h>
 
+/* Wait function */
 void delay_ms(uint16_t millis) {
 	while(millis) {
 		_delay_ms(1);
@@ -26,6 +27,9 @@ void delay_ms(uint16_t millis) {
 	}
 }
 
+/***********/
+/* Defines */
+/***********/
 #define TICK_PER_MM_LEFT 	91.143671935
 #define TICK_PER_MM_RIGHT 	91.143671935
 #define DIAMETER 		155.0 // Distance between the 2 wheels
@@ -42,6 +46,14 @@ void delay_ms(uint16_t millis) {
 #define ALPHADELTA 		0
 #define LEFTRIGHT 		1
 
+#define COMMAND_DONE 		0
+#define PROCESSING_COMMAND 	1
+#define WAITING_BEGIN 		2
+#define ERROR 			3
+
+/***********************/
+/* Specific structures */
+/***********************/
 struct motor {
 	int type;
 	signed long des_speed;
@@ -73,13 +85,9 @@ struct RobotCommand {
 	double desired_distance;
 };
 
-#define COMMAND_DONE 		0
-#define PROCESSING_COMMAND 	1
-#define WAITING_BEGIN 		2
-#define ERROR 			3
-
-long general_time_counter = 0;
-
+/********************/
+/* Global variables */
+/********************/
 struct motor left_motor;
 struct motor right_motor;
 struct motor alpha_motor;
@@ -109,26 +117,24 @@ unsigned int entier;
 char display1, display2, display3, display4, display5, display6, display7;
 
 char serial_command;
-volatile int mycounter =0;
-char start = 0;
 
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
 /***********************/
 
-// External Interrupt 0 service routine
-ISR(INT0_vect)
+// External Interrupt 4 service routine => PIN2
+ISR(INT4_vect)
 {
 	//#asm("cli")
-	if(PINA && 0x01) {
-		if(PIND && 0x04)
+	if((PINB & 0x10) != 0) {
+		if((PINE & 0x10) != 0)
 			left_cnt--;
 		else
 			left_cnt++;
 	}
 	else {
-		if(PIND && 0x04)
+		if((PINE & 0x10) == 0)
 			left_cnt--;
 		else
 			left_cnt++;
@@ -137,17 +143,17 @@ ISR(INT0_vect)
 	//#asm("sei")
 }
 
-// External Interrupt 1 service routine
-ISR(INT1_vect)
+// External Interrupt 5 service routine => PIN3
+ISR(INT5_vect)
 {
-	if(PINC && 0x01) {
-		if(PIND && 0x08)
+	if((PINK & 0x80) != 0) {
+		if((PINE & 0x20) != 0)
 			right_cnt++;
 		else
 			right_cnt--;
 	}
 	else {
-		if(PIND && 0x08)
+		if((PINE & 0x20) == 0)
 			right_cnt++;
 		else
 			right_cnt--;
@@ -155,18 +161,18 @@ ISR(INT1_vect)
 
 }
 
-// Pin change 0-7 interrupt service routine
+// Pin change 0-7 interrupt service routine => PIN10
 ISR(PCINT0_vect)
 {
-	if(PIND && 0x04) {
-		if(PINA && 0x01){
+	if((PINE & 0x10) != 0) {
+		if((PINB & 0x10) != 0){
 			left_cnt++;
 		}
 		else
 			left_cnt--;
 	}
 	else {
-		if(PINA && 0x01){
+		if((PINB & 0x10) == 0){
 			left_cnt++;
 		}
 		else
@@ -175,27 +181,26 @@ ISR(PCINT0_vect)
 
 }
 
-// Pin change 8-15 interrupt service routine
-ISR(PCINT1_vect)
+// Pin change 16-23 interrupt service routine => PIN-ADC15
+ISR(PCINT2_vect)
 {
-	if(PIND && 0x08) {
-		if(PINC && 0x01)
+	if((PINE & 0x20) != 0) {
+		if((PINK & 0x80) != 0)
 			right_cnt--;
 		else
 			right_cnt++;
 	}
 	else {
-		if(PINC && 0x01)
+		if((PINK & 0x80) == 0)
 			right_cnt--;
 		else
 			right_cnt++;
 	}
 
 }
-
 
 // Timer 1 overflow interrupt service routine
-ISR(TIM1_OVF_vect)
+ISR(TIMER1_OVF_vect)
 {
 	sei(); // enable interrupts
 	get_Odometers();
@@ -211,18 +216,21 @@ ISR(TIM1_OVF_vect)
 	}
 }
 
+
 /*************************/
 /* SYSTEM INITIALIZATION */
 /*************************/
 void setup()
 {
 	// Crystal Oscillator division factor: 1
-#pragma optsize-
+/*#pragma optsize-
 	CLKPR=0x80;
 	CLKPR=0x00;
 #ifdef _OPTIMIZE_SIZE_
 #pragma optsize+
-#endif
+#endif*/
+         
+        
 
 	// Input/Output Ports initialization
 	// Port A initialization
@@ -235,7 +243,7 @@ void setup()
 	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=Out
 	// State7=T State6=T State5=T State4=T State3=T State2=T State1=T State0=T
 	PORTB=0x00;
-	DDRB=0x01;
+	DDRB=0x00;
 
 	// Port C initialization
 	// Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In
@@ -254,6 +262,12 @@ void setup()
 	// State2=T State1=T State0=T
 	PORTE=0x00;
 	DDRE=0x00;
+
+	PORTK=0x00;
+	DDRK=0x00;
+
+        pinMode(13, OUTPUT);
+        
 
 	// Timer/Counter 1 initialization
 	// Clock source: System Clock
@@ -294,15 +308,19 @@ void setup()
 	PCMSK1=0x00;
 	PCMSK2=0x80;
 
-	// Timer(s)/Counter(s) Interrupt(s) initialization
-	TIMSK1=0x01;
-	TIFR1=0x01;
+
 	//ETIMSK=0x00;
 
-	Serial.begin(115200);
+
+
+	Serial.begin(9600);
 	Serial1.begin(38400);
 
+digitalWrite(13, HIGH);
 
+	// Timer(s)/Counter(s) Interrupt(s) initialization
+	TIMSK1 |= 0x01;
+	TIFR1  |= 0x01;
 
 
 	/******************************/
@@ -335,7 +353,7 @@ void loop()
 	delay_ms(50);
 
 	if(output_ON == 1) {
-
+//get_Odometers();
 		/* Display for ROS */
 		entier = (unsigned int) fabs(maximus.pos_X*10);
 		display6 = (entier % 10) +48;
@@ -349,7 +367,7 @@ void loop()
 		display2 = (entier % 10) +48;
 		entier = (unsigned int) (entier / 10);
 		display1 = (entier % 10) +48;
-		Serial1.print('x');
+		Serial.print('x');
 		if(maximus.pos_X < 0)
 			Serial.print('-');
 		Serial.print(display1);
@@ -607,19 +625,19 @@ void write_RoboClaw_speed_M2(char addr, signed long speed) {
 void write_RoboClaw_speed_M1M2(char addr, signed long speedM1, signed long speedM2) {
 	char checkSUM;
 	checkSUM = (addr + 37 + ((char) ((speedM1 >> 24) & 0xFF)) + ((char) ((speedM1 >> 16) & 0xFF)) + ((char) ((speedM1 >> 8) & 0xFF)) + ((char) (speedM1 & 0xFF)) + ((char) ((speedM2 >> 24) & 0xFF)) + ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) + ((char) (speedM2 & 0xFF)) ) & 0x7F;
-	Serial1.print(addr);
-	Serial1.print(37);
-	Serial1.print( ((char) ((speedM1 >> 24) & 0xFF)) );
-	Serial1.print( ((char) ((speedM1 >> 16) & 0xFF)) );
-	Serial1.print( ((char) ((speedM1 >> 8) & 0xFF)) );
-	Serial1.print( ((char) (speedM1 & 0xFF)) );
+	Serial1.print(addr, BYTE);
+	Serial1.print(37, BYTE);
+	Serial1.print( ((char) ((speedM1 >> 24) & 0xFF)) , BYTE);
+	Serial1.print( ((char) ((speedM1 >> 16) & 0xFF)) , BYTE);
+	Serial1.print( ((char) ((speedM1 >> 8) & 0xFF)) , BYTE);
+	Serial1.print( ((char) (speedM1 & 0xFF)) , BYTE);
 
-	Serial1.print( ((char) ((speedM2 >> 24) & 0xFF)) );
-	Serial1.print( ((char) ((speedM2 >> 16) & 0xFF)) );
-	Serial1.print( ((char) ((speedM2 >> 8) & 0xFF)) );
-	Serial1.print( ((char) (speedM2 & 0xFF)) );
+	Serial1.print( ((char) ((speedM2 >> 24) & 0xFF)) , BYTE);
+	Serial1.print( ((char) ((speedM2 >> 16) & 0xFF)) , BYTE);
+	Serial1.print( ((char) ((speedM2 >> 8) & 0xFF)) , BYTE);
+	Serial1.print( ((char) (speedM2 & 0xFF)) , BYTE);
 
-	Serial1.print(checkSUM);
+	Serial1.print(checkSUM , BYTE);
 }
 
 // Used to change the speed value of motor 1 and 2 during a specific distance
@@ -839,12 +857,12 @@ signed long convert_ticks2dist(signed long ticks) {
 /********************/
 /* MOTORS FUNCTIONS */
 /********************/
-void move_motors(char type) {
-	if(type == ALPHADELTA)
-		write_RoboClaw_speed_M1M2(128, delta_motor.des_speed - alpha_motor.des_speed, delta_motor.des_speed + alpha_motor.des_speed);
-	else 
-		write_RoboClaw_speed_M1M2(128, left_motor.des_speed, right_motor.des_speed);
-}
+	void move_motors(char type) {
+		if(type == ALPHADELTA)
+			write_RoboClaw_speed_M1M2(128, delta_motor.des_speed - alpha_motor.des_speed, delta_motor.des_speed + alpha_motor.des_speed);
+		else 
+			write_RoboClaw_speed_M1M2(128, left_motor.des_speed, right_motor.des_speed);
+	}
 
 void update_motor(struct motor *used_motor) {
 	switch(used_motor->type) {
