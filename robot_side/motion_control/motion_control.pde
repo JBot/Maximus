@@ -37,7 +37,7 @@ void delay_ms(uint16_t millis)
 /***********/
 #define TICK_PER_MM_LEFT 	91.143671935
 #define TICK_PER_MM_RIGHT 	91.143671935
-#define DIAMETER 		155.0                      // Distance between the 2 wheels
+#define DIAMETER 		154.0                      // Distance between the 2 wheels
 
 #define TWOPI 			6.2831853070
 #define RAD2DEG 		57.2958                    /* radians to degrees conversion */
@@ -129,6 +129,10 @@ Servo gripServo_left;
 int front_distance = 50;
 int prev_front_distance = 50;
 
+long global_time_counter = 0;
+char has_pawn = 0;
+
+
 /***********************/
 /* INTERRUPT FUNCTIONS */
 /***********************/
@@ -217,6 +221,8 @@ ISR(TIMER1_OVF_vect)
         if (output_ON == 1)
             move_motors(LEFTRIGHT);                        // Update the motor speed
     }
+
+
 
     // Compute sensors
     int sensorValue = analogRead(0);
@@ -338,9 +344,9 @@ void setup()
     TIFR1 |= 0x01;
 
 
-        /******************************/
+    /******************************/
     /* Initialization of the code */
-        /******************************/
+    /******************************/
     write_RoboClaw_speed_M1M2(128, 0, 0);
 
     init_motors();                                         // Init motors
@@ -370,7 +376,7 @@ void loop()
 
     delay_ms(50);
 
-
+    global_time_counter++;
 
     if (output_ON == 1) {
         //get_Odometers();
@@ -419,8 +425,8 @@ void loop()
         Serial.print(display5);
         Serial.print(display6);
 
-        entier = (unsigned int) fabs(maximus.theta * 10000);
-        //entier = (unsigned int) fabs(maximus.theta * RAD2DEG);
+        //entier = (unsigned int) fabs(maximus.theta * 10000);
+        entier = (unsigned int) fabs(maximus.theta * RAD2DEG * 10);
         display6 = (entier % 10) + 48;
         entier = (unsigned int) (entier / 10);
         display5 = (entier % 10) + 48;
@@ -462,15 +468,72 @@ void loop()
         Serial.print(display5);
         Serial.print(display6);
 
+        entier = (unsigned int) abs(global_time_counter);
+        display6 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display5 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display4 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display3 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display2 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display1 = (entier % 10) + 48;
+        Serial.print('c');
+        Serial.print(display1);
+        Serial.print(display2);
+        Serial.print(display3);
+        Serial.print(display4);
+        Serial.print(display5);
+        Serial.print(display6);
+
+
+
 
         Serial.print('\n');
         Serial.print('\r');
 
     }
 
-    if (front_distance < 8) {
+    if ((front_distance < 8) && (has_pawn == 0)) {
         grip_pawn();
+        has_pawn = 1;
     }
+
+    if (global_time_counter == 90) {
+        //set_new_command(&bot_command_delta, (800-41));
+        goto_xy(-1050, 192);
+    }
+    if (global_time_counter == 120) {
+        //set_new_command(&bot_command_alpha, 90);
+        goto_xy(-700, 350);
+    }
+    if (global_time_counter == 150) {
+        //set_new_command(&bot_command_delta, (1400-192));
+        goto_xy(-700, 1600);
+    }
+    if (global_time_counter == 180) {
+        //set_new_command(&bot_command_alpha, 20);
+        goto_xy(-720, 1660);
+    }
+
+    if (global_time_counter == 210) {
+        //set_new_command(&bot_command_delta, 270);
+        release_pawn();
+        set_new_command(&bot_command_delta, -270);
+    }
+    if (global_time_counter == 240) {
+        goto_xy(-700, 350);
+    }
+    if (global_time_counter == 270) {
+        has_pawn = 0;
+        //set_new_command(&bot_command_alpha, -20);
+    }
+    if (global_time_counter == 300) {
+        //set_new_command(&bot_command_delta, -(1400-192));
+    }
+
 
     if (Serial.available() >= (1 + 6)) {
         serial_command = Serial.read();
@@ -488,35 +551,6 @@ void loop()
                case 'L' :
                linear_from_ROS(0);
                break; */
-            // case 'T' :
-            // start = 1;
-            // mycounter = 0;
-            // //compute_distance_ramp(&bot_command, &delta_motor, convert_dist2ticks(350), general_time_counter);
-            // Serial.read();
-            // Serial.read();
-            // Serial.read();
-            // Serial.read();
-            // Serial.read();
-            // Serial.read();
-            // break;
-            // case 'P' :
-            // change_alphakP();
-            // break;
-            // case 'D' :
-            // change_alphakD();
-            // break;
-            // case 'I' :
-            // change_alphakI();
-            // break;
-            // case 'p' :
-            // change_deltakP();
-            // break;
-            // case 'd' :
-            // change_deltakD();
-            // break;
-            // case 'i' :
-            // change_deltakI();
-            // break;
         case 'G':
             get_goal_from_ROS();
             break;
@@ -680,8 +714,8 @@ void write_RoboClaw_speed_M1(char addr, signed long speed)
 {
     char checkSUM;
     checkSUM =
-        (addr + 35 + ((char) ((speed >> 24) & 0xFF)) + ((char) ((speed >> 16) & 0xFF)) + ((char) ((speed >> 8) & 0xFF)) +
-         ((char) (speed & 0xFF))) & 0x7F;
+        (addr + 35 + ((char) ((speed >> 24) & 0xFF)) +
+         ((char) ((speed >> 16) & 0xFF)) + ((char) ((speed >> 8) & 0xFF)) + ((char) (speed & 0xFF))) & 0x7F;
     Serial1.print(addr);
     Serial1.print(35);
     Serial1.print(((char) ((speed >> 24) & 0xFF)));
@@ -697,8 +731,8 @@ void write_RoboClaw_speed_M2(char addr, signed long speed)
 {
     char checkSUM;
     checkSUM =
-        (addr + 36 + ((char) ((speed >> 24) & 0xFF)) + ((char) ((speed >> 16) & 0xFF)) + ((char) ((speed >> 8) & 0xFF)) +
-         ((char) (speed & 0xFF))) & 0x7F;
+        (addr + 36 + ((char) ((speed >> 24) & 0xFF)) +
+         ((char) ((speed >> 16) & 0xFF)) + ((char) ((speed >> 8) & 0xFF)) + ((char) (speed & 0xFF))) & 0x7F;
     Serial1.print(addr);
     Serial1.print(36);
     Serial1.print(((char) ((speed >> 24) & 0xFF)));
@@ -716,8 +750,8 @@ void write_RoboClaw_speed_M1M2(char addr, signed long speedM1, signed long speed
     checkSUM =
         (addr + 37 + ((char) ((speedM1 >> 24) & 0xFF)) +
          ((char) ((speedM1 >> 16) & 0xFF)) + ((char) ((speedM1 >> 8) & 0xFF)) +
-         ((char) (speedM1 & 0xFF)) + ((char) ((speedM2 >> 24) & 0xFF)) + ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) +
-         ((char) (speedM2 & 0xFF))) & 0x7F;
+         ((char) (speedM1 & 0xFF)) + ((char) ((speedM2 >> 24) & 0xFF)) +
+         ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) + ((char) (speedM2 & 0xFF))) & 0x7F;
     Serial1.print(addr, BYTE);
     Serial1.print(37, BYTE);
     Serial1.print(((char) ((speedM1 >> 24) & 0xFF)), BYTE);
@@ -744,7 +778,8 @@ void write_RoboClaw_speed_dist_M1M2(char addr, signed long speedM1, signed long 
          ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) +
          ((char) (speedM2 & 0xFF)) + ((char) ((distanceM1 >> 24) & 0xFF)) +
          ((char) ((distanceM1 >> 16) & 0xFF)) +
-         ((char) ((distanceM1 >> 8) & 0xFF)) + ((char) (distanceM1 & 0xFF)) + ((char) ((distanceM2 >> 24) & 0xFF)) +
+         ((char) ((distanceM1 >> 8) & 0xFF)) + ((char) (distanceM1 & 0xFF)) +
+         ((char) ((distanceM2 >> 24) & 0xFF)) +
          ((char) ((distanceM2 >> 16) & 0xFF)) + ((char) ((distanceM2 >> 8) & 0xFF)) + ((char) (distanceM2 & 0xFF)) + 1) & 0x7F;
     Serial1.print(addr);
     Serial1.print(43);
@@ -774,8 +809,8 @@ void write_RoboClaw_speed_dist_M1M2(char addr, signed long speedM1, signed long 
 }
 
 // Used to change the speed value of motor 1 and 2 during a specific distance with a specific acceleration
-void write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM1, signed long distanceM1, signed long speedM2,
-                                signed long distanceM2)
+void
+write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM1, signed long distanceM1, signed long speedM2, signed long distanceM2)
 {
     char checkSUM;
     checkSUM =
@@ -787,7 +822,8 @@ void write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM
          ((char) ((speedM2 >> 16) & 0xFF)) + ((char) ((speedM2 >> 8) & 0xFF)) +
          ((char) (speedM2 & 0xFF)) + ((char) ((distanceM1 >> 24) & 0xFF)) +
          ((char) ((distanceM1 >> 16) & 0xFF)) +
-         ((char) ((distanceM1 >> 8) & 0xFF)) + ((char) (distanceM1 & 0xFF)) + ((char) ((distanceM2 >> 24) & 0xFF)) +
+         ((char) ((distanceM1 >> 8) & 0xFF)) + ((char) (distanceM1 & 0xFF)) +
+         ((char) ((distanceM2 >> 24) & 0xFF)) +
          ((char) ((distanceM2 >> 16) & 0xFF)) + ((char) ((distanceM2 >> 8) & 0xFF)) + ((char) (distanceM2 & 0xFF)) + 1) & 0x7F;
 
     Serial1.print(addr);
@@ -908,8 +944,8 @@ long compute_position_PID(struct RobotCommand *cmd, struct motor *used_motor)
     if (tmp < -(used_motor->max_speed))
         tmp = -(used_motor->max_speed);
 
-    if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 5)
-        && (abs(errDif) < 5)) {
+    if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 3)
+        && (abs(errDif) < 3)) {
         cmd->state = COMMAND_DONE;
     }
 
