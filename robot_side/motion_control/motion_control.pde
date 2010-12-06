@@ -42,6 +42,8 @@ void delay_ms(uint16_t millis)
 #define TWOPI 			6.2831853070
 #define RAD2DEG 		57.2958                    /* radians to degrees conversion */
 
+#define DISTANCE_CENTER_PAWN    240.0
+
 // Types of motor
 #define ALPHA_MOTOR 		0
 #define DELTA_MOTOR 		1
@@ -55,6 +57,12 @@ void delay_ms(uint16_t millis)
 #define PROCESSING_COMMAND 	1
 #define WAITING_BEGIN 		2
 #define ERROR 			3
+
+#define NO_PAWN                 0
+#define TAKE_PAWN               1
+#define GOTO_RELEASE            2
+#define GO_BACK                 3
+
 
 /***********************/
 /* Specific structures */
@@ -88,6 +96,11 @@ struct RobotCommand {
     char state;
     double current_distance;
     double desired_distance;
+};
+
+struct Point {
+    int x;
+    int y;
 };
 
 /********************/
@@ -130,7 +143,15 @@ int front_distance = 50;
 int prev_front_distance = 50;
 
 long global_time_counter = 0;
-char has_pawn = 0;
+char has_pawn = NO_PAWN;
+
+struct Point red_points[18];
+struct Point blue_points[18];
+
+struct Point *my_color_points;
+
+struct Point way_points[20];
+int way_point_index = 0;
 
 
 /***********************/
@@ -350,16 +371,23 @@ void setup()
     write_RoboClaw_speed_M1M2(128, 0, 0);
 
     init_motors();                                         // Init motors
-    init_Robot(&maximus);                                  // Init robot status
+    init_blue_Robot(&maximus);                             // Init robot status
 
     init_Command(&bot_command_delta);                      // Init robot command
     init_Command(&bot_command_alpha);                      // Init robot command
+
+    init_color_points();                                   // Init the color field
+    init_way_points();
 
     // Global enable interrupts
     sei();
 
     digitalWrite(13, HIGH);
-    delay_ms(1000);
+    delay_ms(300);
+    digitalWrite(13, LOW);
+    delay_ms(300);
+    digitalWrite(13, HIGH);
+    delay_ms(300);
 
     // For ROS utilization
     output_ON = 1;
@@ -468,27 +496,6 @@ void loop()
         Serial.print(display5);
         Serial.print(display6);
 
-        entier = (unsigned int) abs(global_time_counter);
-        display6 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display5 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display4 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display3 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display2 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display1 = (entier % 10) + 48;
-        Serial.print('c');
-        Serial.print(display1);
-        Serial.print(display2);
-        Serial.print(display3);
-        Serial.print(display4);
-        Serial.print(display5);
-        Serial.print(display6);
-
-
 
 
         Serial.print('\n');
@@ -496,11 +503,13 @@ void loop()
 
     }
 
-    if ((front_distance < 8) && (has_pawn == 0)) {
+    if ((front_distance < 8) && (has_pawn == NO_PAWN)) {
         grip_pawn();
-        has_pawn = 1;
+        has_pawn = TAKE_PAWN;
+        stop_robot();
+        delay_ms(1000);
     }
-
+/*
     if (global_time_counter == 90) {
         //set_new_command(&bot_command_delta, (800-41));
         goto_xy(-1050, 192);
@@ -513,27 +522,89 @@ void loop()
         //set_new_command(&bot_command_delta, (1400-192));
         goto_xy(-700, 1600);
     }
-    if (global_time_counter == 180) {
+    if (global_time_counter == 195) {
         //set_new_command(&bot_command_alpha, 20);
-        goto_xy(-720, 1660);
+        //goto_xy(-720, 1660);
+        double x_topawn;
+        double y_topawn;
+        //x_topawn = -875.0;
+        //y_topawn = 1865.0;
+        //move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+        //goto_xy(x_topawn, y_topawn);
+
+        struct Point release_point = find_nearest(&maximus, my_color_points, 18);
+        x_topawn = release_point.x;
+        y_topawn = release_point.y;
+        
+        int sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+        if( sens == 0 ) { // Front
+          goto_xy(x_topawn, y_topawn);
+        }
+        else { // Back
+          goto_xy_back(x_topawn, y_topawn);
+        }
+
     }
 
-    if (global_time_counter == 210) {
+    if (global_time_counter == 230) {
         //set_new_command(&bot_command_delta, 270);
         release_pawn();
-        set_new_command(&bot_command_delta, -270);
+        set_new_command(&bot_command_delta, -180);
     }
-    if (global_time_counter == 240) {
+    if (global_time_counter == 250) {
         goto_xy(-700, 350);
     }
-    if (global_time_counter == 270) {
-        has_pawn = 0;
+    if (global_time_counter == 280) {
+        has_pawn = NO_PAWN;
         //set_new_command(&bot_command_alpha, -20);
     }
     if (global_time_counter == 300) {
         //set_new_command(&bot_command_delta, -(1400-192));
     }
+*/
 
+    if ((global_time_counter > 90) && (bot_command_alpha.state == COMMAND_DONE) && (bot_command_delta.state == COMMAND_DONE)) { // If all commands are done, go to the next step
+        struct Point release_point;
+        double x_topawn;
+        double y_topawn;
+        int sens;
+
+        switch (has_pawn) {
+        case TAKE_PAWN:                                   // The robot just take a pawn to put in his color
+            release_point = find_nearest(&maximus, my_color_points, 18);
+            x_topawn = release_point.x;
+            y_topawn = release_point.y;
+
+            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+            if (sens == 0) {                               // Front
+                goto_xy(x_topawn, y_topawn);
+            } else {                                       // Back
+                goto_xy_back(x_topawn, y_topawn);
+            }
+
+            has_pawn = GOTO_RELEASE;
+            break;
+
+        case GOTO_RELEASE:                                // The robot have a pawn and is on his release point
+            release_pawn();
+            set_new_command(&bot_command_delta, -180);
+            has_pawn = GO_BACK;
+            break;
+
+        case GO_BACK:                                     // The robot release the pawn and go back to let it in position
+            goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+            has_pawn = NO_PAWN;
+            break;
+
+        default:                                          // has no pawn => Move to the next position
+            if (way_point_index == 5)
+                way_point_index = 1;
+            goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+            way_point_index++;
+            break;
+        }
+
+    }
 
     if (Serial.available() >= (1 + 6)) {
         serial_command = Serial.read();
@@ -639,6 +710,32 @@ void init_Robot(struct robot *my_robot)
     my_robot->yaw_offset = 0.0;
 }
 
+void init_blue_Robot(struct robot *my_robot)
+{
+    my_robot->pos_X = -1459;                               // -700         
+    my_robot->pos_Y = 192;                                 // 700          
+    my_robot->theta = 0;                                   // PI/2
+    my_robot->yaw = 0.0;
+    my_robot->pitch = 0.0;
+    my_robot->roll = 0.0;
+    my_robot->yaw_offset = 0.0;
+
+    my_color_points = blue_points;
+}
+
+void init_red_Robot(struct robot *my_robot)
+{
+    my_robot->pos_X = 1459;                                // -700         
+    my_robot->pos_Y = 192;                                 // 700          
+    my_robot->theta = PI;                                  // PI/2
+    my_robot->yaw = 0.0;
+    my_robot->pitch = 0.0;
+    my_robot->roll = 0.0;
+    my_robot->yaw_offset = 0.0;
+
+    my_color_points = red_points;
+}
+
 void init_Command(struct RobotCommand *cmd)
 {
     cmd->state = COMMAND_DONE;
@@ -705,6 +802,113 @@ void init_motors(void)
     delta_motor.distance = 0.0;
 }
 
+void init_color_points(void)
+{
+    /* Red points */
+    red_points[0].x = -175 + 350 + 350;
+    red_points[1].x = -175;
+    red_points[2].x = -175 - 350 - 350;
+    red_points[0].y = 175;
+    red_points[1].y = 175;
+    red_points[2].y = 175;
+
+    red_points[3].x = 175 + 350 + 350;
+    red_points[4].x = 175;
+    red_points[5].x = 175 - 350 - 350;
+    red_points[3].y = 175 + 350;
+    red_points[4].y = 175 + 350;
+    red_points[5].y = 175 + 350;
+
+    red_points[6].x = -175 + 350 + 350;
+    red_points[7].x = -175;
+    red_points[8].x = -175 - 350 - 350;
+    red_points[6].y = 175 + 350 + 350;
+    red_points[7].y = 175 + 350 + 350;
+    red_points[8].y = 175 + 350 + 350;
+
+    red_points[9].x = 175 + 350 + 350;
+    red_points[10].x = 175;
+    red_points[11].x = 175 - 350 - 350;
+    red_points[9].y = 175 + 350 + 350 + 350;
+    red_points[10].y = 175 + 350 + 350 + 350;
+    red_points[11].y = 175 + 350 + 350 + 350;
+
+    red_points[12].x = -175 + 350 + 350;
+    red_points[13].x = -175;
+    red_points[14].x = -175 - 350 - 350;
+    red_points[12].y = 175 + 350 + 350 + 350 + 350;
+    red_points[13].y = 175 + 350 + 350 + 350 + 350;
+    red_points[14].y = 175 + 350 + 350 + 350 + 350;
+
+    red_points[15].x = 175 + 350 + 350;
+    red_points[16].x = 175;
+    red_points[17].x = 175 - 350 - 350;
+    red_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+    red_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
+    red_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+
+    /* Blue points */
+    blue_points[0].x = 175 + 350 + 350;
+    blue_points[1].x = 175;
+    blue_points[2].x = 175 - 350 - 350;
+    blue_points[0].y = 175;
+    blue_points[1].y = 175;
+    blue_points[2].y = 175;
+
+    blue_points[3].x = -175 + 350 + 350;
+    blue_points[4].x = -175;
+    blue_points[5].x = -175 - 350 - 350;
+    blue_points[3].y = 175 + 350;
+    blue_points[4].y = 175 + 350;
+    blue_points[5].y = 175 + 350;
+
+    blue_points[6].x = 175 + 350 + 350;
+    blue_points[7].x = 175;
+    blue_points[8].x = 175 - 350 - 350;
+    blue_points[6].y = 175 + 350 + 350;
+    blue_points[7].y = 175 + 350 + 350;
+    blue_points[8].y = 175 + 350 + 350;
+
+    blue_points[9].x = -175 + 350 + 350;
+    blue_points[10].x = -175;
+    blue_points[11].x = -175 - 350 - 350;
+    blue_points[9].y = 175 + 350 + 350 + 350;
+    blue_points[10].y = 175 + 350 + 350 + 350;
+    blue_points[11].y = 175 + 350 + 350 + 350;
+
+    blue_points[12].x = 175 + 350 + 350;
+    blue_points[13].x = 175;
+    blue_points[14].x = 175 - 350 - 350;
+    blue_points[12].y = 175 + 350 + 350 + 350 + 350;
+    blue_points[13].y = 175 + 350 + 350 + 350 + 350;
+    blue_points[14].y = 175 + 350 + 350 + 350 + 350;
+
+    blue_points[15].x = -175 + 350 + 350;
+    blue_points[16].x = -175;
+    blue_points[17].x = -175 - 350 - 350;
+    blue_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+    blue_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
+    blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+
+}
+
+void init_way_points(void)
+{
+    way_points[0].x = -1100;
+    way_points[0].y = 192;
+    way_points[1].x = -700;
+    way_points[1].y = 350;
+    way_points[2].x = -700;
+    way_points[2].y = 1600;
+
+    way_points[3].x = -350;
+    way_points[3].y = 1400;
+    way_points[4].x = -350;
+    way_points[4].y = 350;
+    way_points[5].x = -700;
+    way_points[5].y = 350;
+
+}
 
 /***********************/
 /* ROBO CLAW FUNCTIONS */
@@ -880,9 +1084,9 @@ void do_motion_control(void)
 
     // PID angle
     alpha_motor.des_speed = compute_position_PID(&bot_command_alpha, &alpha_motor);
-    if (bot_command_alpha.state == WAITING_BEGIN) {
-        bot_command_alpha.state = PROCESSING_COMMAND;
-    }
+    /*if (bot_command_alpha.state == WAITING_BEGIN) {
+       bot_command_alpha.state = PROCESSING_COMMAND;
+       } */
 
 }
 
@@ -944,8 +1148,8 @@ long compute_position_PID(struct RobotCommand *cmd, struct motor *used_motor)
     if (tmp < -(used_motor->max_speed))
         tmp = -(used_motor->max_speed);
 
-    if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 3)
-        && (abs(errDif) < 3)) {
+    if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 2)
+        && (abs(errDif) < 2)) {
         cmd->state = COMMAND_DONE;
     }
 
@@ -1002,7 +1206,93 @@ void goto_xy(double x, double y)
 
     dist = distance_coord(&maximus, x, y);
     set_new_command(&prev_bot_command_delta, dist);
+    bot_command_delta.state = WAITING_BEGIN;
 }
+
+void goto_xy_back(double x, double y)
+{
+    double ang, dist;
+
+    ang = angle_coord(&maximus, x, y);
+    if (ang < 0)
+        ang = (ang + PI) * RAD2DEG;
+    else
+        ang = (ang - PI) * RAD2DEG;
+    set_new_command(&bot_command_alpha, ang);
+
+    dist = -distance_coord(&maximus, x, y);
+    set_new_command(&prev_bot_command_delta, dist);
+    bot_command_delta.state = WAITING_BEGIN;
+}
+
+// Compute the coordinate to put a pawn to (x, y)
+int move_pawn_to_xy(struct robot *my_robot, double *x1, double *y1)
+{
+    double distance = distance_coord(my_robot, *x1, *y1);
+    int sens = 0;
+    double angletodo = 0;
+    double x_todo = 0, y_todo = 0;
+
+    if (distance < DISTANCE_CENTER_PAWN)
+        sens = 1;
+
+    if ((*x1 < my_robot->pos_X) && (*y1 < my_robot->pos_Y)) {
+        angletodo = atan(fabs((*x1 - my_robot->pos_X) / (*y1 - my_robot->pos_Y)));
+        x_todo = *x1 + (sin(angletodo) * DISTANCE_CENTER_PAWN);
+        y_todo = *y1 + (cos(angletodo) * DISTANCE_CENTER_PAWN);
+    } else if ((*x1 > my_robot->pos_X) && (*y1 < my_robot->pos_Y)) {
+        angletodo = atan(fabs((*y1 - my_robot->pos_Y) / (*x1 - my_robot->pos_X)));
+        x_todo = *x1 - (cos(angletodo) * DISTANCE_CENTER_PAWN);
+        y_todo = *y1 + (sin(angletodo) * DISTANCE_CENTER_PAWN);
+    } else if ((*x1 > my_robot->pos_X) && (*y1 > my_robot->pos_Y)) {
+        angletodo = atan(fabs((*y1 - my_robot->pos_Y) / (*x1 - my_robot->pos_X)));
+        x_todo = *x1 - (cos(angletodo) * DISTANCE_CENTER_PAWN);
+        y_todo = *y1 - (sin(angletodo) * DISTANCE_CENTER_PAWN);
+    } else if ((*x1 < my_robot->pos_X) && (*y1 > my_robot->pos_Y)) {
+        angletodo = atan(fabs((*x1 - my_robot->pos_X) / (*y1 - my_robot->pos_Y)));
+        x_todo = *x1 + (sin(angletodo) * DISTANCE_CENTER_PAWN);
+        y_todo = *y1 - (cos(angletodo) * DISTANCE_CENTER_PAWN);
+    } else if ((*x1 < my_robot->pos_X) && (*y1 == my_robot->pos_Y)) {   // 
+        x_todo = *x1 + DISTANCE_CENTER_PAWN;
+    } else if ((*x1 > my_robot->pos_X) && (*y1 == my_robot->pos_Y)) {   // 
+        x_todo = *x1 - DISTANCE_CENTER_PAWN;
+    } else if ((*x1 == my_robot->pos_X) && (*y1 < my_robot->pos_Y)) {   // 
+        y_todo = *y1 + DISTANCE_CENTER_PAWN;
+    } else if ((*x1 == my_robot->pos_X) && (*y1 > my_robot->pos_Y)) {   // 
+        y_todo = *y1 - DISTANCE_CENTER_PAWN;
+    } else {
+        y_todo = *y1;
+        x_todo = *x1;
+    }
+
+    entier = (unsigned int) fabs(x_todo);
+    display6 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display5 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display4 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display3 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display2 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display1 = (entier % 10) + 48;
+    Serial.print('d');
+    if (x_todo < 0)
+        Serial.print('-');
+    Serial.print(display1);
+    Serial.print(display2);
+    Serial.print(display3);
+    Serial.print(display4);
+    Serial.print(display5);
+    Serial.print(display6);
+
+    *y1 = y_todo;
+    *x1 = x_todo;
+
+    return sens;
+}
+
 
 /************************/
 /* CONVERSION FUNCTIONS */
@@ -1098,6 +1388,24 @@ void get_Odometers(void)
     update_motor(&delta_motor);
 
 
+}
+
+/******************/
+/* A.I. Functions */
+/******************/
+struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    double best_distance = 99999.9;
+    for (int i = 0; i < size; i++) {
+        double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
+        if (distance < best_distance) {
+            best_distance = distance;
+            result.x = tab[i].x;
+            result.y = tab[i].y;
+        }
+    }
+    return result;
 }
 
 /***********************/
@@ -1249,6 +1557,7 @@ void stop_robot(void)
 {
     set_new_command(&bot_command_alpha, 0);
     set_new_command(&prev_bot_command_delta, 0);
+    set_new_command(&bot_command_delta, 0);
     right_motor.des_speed = 0;
     left_motor.des_speed = 0;
     write_RoboClaw_speed_M1M2(128, 0, 0);
