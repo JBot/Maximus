@@ -1,7 +1,7 @@
 /*****************************************************
 Project : Maximus
-Version : 5.2
-Date : 27/11/2010
+Version : 5.3
+Date : 08/12/2010
 Author : JBot
 Company :
 Comments:
@@ -37,7 +37,7 @@ void delay_ms(uint16_t millis)
 /***********/
 #define TICK_PER_MM_LEFT 	91.143671935
 #define TICK_PER_MM_RIGHT 	91.143671935
-#define DIAMETER 		154.0                      // Distance between the 2 wheels
+#define DIAMETER 		155.0                      // Distance between the 2 wheels
 
 #define TWOPI 			6.2831853070
 #define RAD2DEG 		57.2958                    /* radians to degrees conversion */
@@ -507,7 +507,7 @@ void loop()
         grip_pawn();
         has_pawn = TAKE_PAWN;
         stop_robot();
-        delay_ms(1000);
+        delay_ms(400);
     }
 /*
     if (global_time_counter == 90) {
@@ -783,8 +783,8 @@ void init_motors(void)
     alpha_motor.kI = 0;
     alpha_motor.kD = 200;                                  // 100 * 1.09
     alpha_motor.accel = 200;                               // 300
-    alpha_motor.decel = 1200;                              // 500
-    alpha_motor.max_speed = 10000;                         //8000
+    alpha_motor.decel = 1000;                              // 500
+    alpha_motor.max_speed = 6000;                          //8000
     alpha_motor.distance = 0.0;
 
     /* Delta motor initialization */
@@ -797,8 +797,8 @@ void init_motors(void)
     delta_motor.kI = 0;
     delta_motor.kD = 200;                                  // 100 * 1.09
     delta_motor.accel = 500;
-    delta_motor.decel = 1100;
-    delta_motor.max_speed = 40000;
+    delta_motor.decel = 1000;
+    delta_motor.max_speed = 30000;
     delta_motor.distance = 0.0;
 }
 
@@ -1265,28 +1265,6 @@ int move_pawn_to_xy(struct robot *my_robot, double *x1, double *y1)
         x_todo = *x1;
     }
 
-    entier = (unsigned int) fabs(x_todo);
-    display6 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display5 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display4 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display3 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display2 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display1 = (entier % 10) + 48;
-    Serial.print('d');
-    if (x_todo < 0)
-        Serial.print('-');
-    Serial.print(display1);
-    Serial.print(display2);
-    Serial.print(display3);
-    Serial.print(display4);
-    Serial.print(display5);
-    Serial.print(display6);
-
     *y1 = y_todo;
     *x1 = x_todo;
 
@@ -1556,11 +1534,11 @@ void start_position_motion_control(void)
 void stop_robot(void)
 {
     set_new_command(&bot_command_alpha, 0);
-    set_new_command(&prev_bot_command_delta, 0);
-    set_new_command(&bot_command_delta, 0);
-    right_motor.des_speed = 0;
-    left_motor.des_speed = 0;
-    write_RoboClaw_speed_M1M2(128, 0, 0);
+    set_new_command(&prev_bot_command_delta, 20);
+    set_new_command(&bot_command_delta, 20);
+    //right_motor.des_speed = 0;
+    //left_motor.des_speed = 0;
+    //write_RoboClaw_speed_M1M2(128, 0, 0);
 }
 
 void set_alpha(void)
