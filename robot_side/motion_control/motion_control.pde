@@ -37,7 +37,7 @@ void delay_ms(uint16_t millis)
 /***********/
 #define TICK_PER_MM_LEFT 	91.143671935
 #define TICK_PER_MM_RIGHT 	91.143671935
-#define DIAMETER 		155.0                      // Distance between the 2 wheels
+#define DIAMETER 		195.0        //155.0                      // Distance between the 2 wheels
 
 #define TWOPI 			6.2831853070
 #define RAD2DEG 		57.2958                    /* radians to degrees conversion */
@@ -57,12 +57,6 @@ void delay_ms(uint16_t millis)
 #define PROCESSING_COMMAND 	1
 #define WAITING_BEGIN 		2
 #define ERROR 			3
-
-#define NO_PAWN                 0
-#define TAKE_PAWN               1
-#define GOTO_RELEASE            2
-#define GO_BACK                 3
-
 
 /***********************/
 /* Specific structures */
@@ -121,7 +115,9 @@ volatile long left_cnt = 0;
 volatile long right_cnt = 0;
 
 char output_ON = 0;
+char roboclaw_ON = 0;
 char motion_control_ON = 1;
+
 
 int last_left = 0;
 int last_right = 0;
@@ -143,15 +139,12 @@ int front_distance = 50;
 int prev_front_distance = 50;
 
 long global_time_counter = 0;
-char has_pawn = NO_PAWN;
-
-struct Point red_points[18];
-struct Point blue_points[18];
 
 struct Point *my_color_points;
 
 struct Point way_points[20];
 int way_point_index = 0;
+
 
 
 /***********************/
@@ -236,19 +229,12 @@ ISR(TIMER1_OVF_vect)
 
     if (motion_control_ON == 1) {
         do_motion_control();
-        if (output_ON == 1)
+        if (roboclaw_ON == 1)
             move_motors(ALPHADELTA);                       // Update the motor speed
     } else {
-        if (output_ON == 1)
+        if (roboclaw_ON == 1)
             move_motors(LEFTRIGHT);                        // Update the motor speed
     }
-
-
-
-    // Compute sensors
-    int sensorValue = analogRead(0);
-    front_distance = (front_distance + ((6787 / (sensorValue - 3)) - 4) * 2) / 3;
-
 }
 
 
@@ -348,17 +334,11 @@ void setup()
 
 
     // Mode Debug
-    Serial.begin(9600);
-    // Mode Bluetooth
-    //Serial.begin(115200);
+    //Serial.begin(9600);
+    Serial.begin(115200);
     Serial1.begin(38400);
-
-    gripServo_right.attach(7);
-    gripServo_left.attach(6);
-    gripServo_right.write(70);
-    gripServo_left.write(110);
-
-
+    // Bluetooth
+    Serial2.begin(115200);
 
     // Timer(s)/Counter(s) Interrupt(s) initialization
     TIMSK1 |= 0x01;
@@ -376,21 +356,20 @@ void setup()
     init_Command(&bot_command_delta);                      // Init robot command
     init_Command(&bot_command_alpha);                      // Init robot command
 
-    init_color_points();                                   // Init the color field
-    init_way_points();
-
     // Global enable interrupts
     sei();
 
-    digitalWrite(13, HIGH);
+    digitalWrite(13, LOW);
+
+//    digitalWrite(13, HIGH);
     delay_ms(300);
     digitalWrite(13, LOW);
     delay_ms(300);
-    digitalWrite(13, HIGH);
+//    digitalWrite(13, HIGH);
     delay_ms(300);
 
-    // For ROS utilization
-    output_ON = 1;
+    // enable communication with the roboclaw
+    roboclaw_ON = 1;
 
 
 }
@@ -402,11 +381,12 @@ void loop()
 {
     // Place your code here
 
-    delay_ms(50);
+    delay_ms(10);
 
     global_time_counter++;
 
-    if (output_ON == 1) {
+    if ((output_ON == 1) && (global_time_counter == 4)) {
+        global_time_counter = 0;
         //get_Odometers();
         /* Display for ROS */
         entier = (unsigned int) fabs(maximus.pos_X * 10);
@@ -424,12 +404,26 @@ void loop()
         Serial.print('x');
         if (maximus.pos_X < 0)
             Serial.print('-');
+        else
+          Serial.print('+');
         Serial.print(display1);
         Serial.print(display2);
         Serial.print(display3);
         Serial.print(display4);
         Serial.print(display5);
         Serial.print(display6);
+        
+        Serial2.print('x');
+        if (maximus.pos_X < 0)
+            Serial2.print('-');
+        else
+          Serial2.print('+');
+        Serial2.print(display1);
+        Serial2.print(display2);
+        Serial2.print(display3);
+        Serial2.print(display4);
+        Serial2.print(display5);
+        Serial2.print(display6);
 
         entier = (unsigned int) fabs(maximus.pos_Y * 10);
         display6 = (entier % 10) + 48;
@@ -446,6 +440,8 @@ void loop()
         Serial.print('y');
         if (maximus.pos_Y < 0)
             Serial.print('-');
+        else
+          Serial.print('+');
         Serial.print(display1);
         Serial.print(display2);
         Serial.print(display3);
@@ -453,8 +449,21 @@ void loop()
         Serial.print(display5);
         Serial.print(display6);
 
-        //entier = (unsigned int) fabs(maximus.theta * 10000);
-        entier = (unsigned int) fabs(maximus.theta * RAD2DEG * 10);
+        Serial2.print('y');
+        if (maximus.pos_Y < 0)
+            Serial2.print('-');
+        else
+          Serial2.print('+');
+        Serial2.print(display1);
+        Serial2.print(display2);
+        Serial2.print(display3);
+        Serial2.print(display4);
+        Serial2.print(display5);
+        Serial2.print(display6);
+
+
+        entier = (unsigned int) fabs(maximus.theta * 10000);
+        //entier = (unsigned int) fabs(maximus.theta * RAD2DEG * 10);
         display6 = (entier % 10) + 48;
         entier = (unsigned int) (entier / 10);
         display5 = (entier % 10) + 48;
@@ -469,6 +478,8 @@ void loop()
         Serial.print('t');
         if (maximus.theta < 0)
             Serial.print('-');
+        else
+          Serial.print('+');
         Serial.print(display1);
         Serial.print(display2);
         Serial.print(display3);
@@ -476,135 +487,34 @@ void loop()
         Serial.print(display5);
         Serial.print(display6);
 
-        entier = (unsigned int) abs(front_distance * 10 + 95);
-        display6 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display5 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display4 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display3 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display2 = (entier % 10) + 48;
-        entier = (unsigned int) (entier / 10);
-        display1 = (entier % 10) + 48;
-        Serial.print('m');
-        Serial.print(display1);
-        Serial.print(display2);
-        Serial.print(display3);
-        Serial.print(display4);
-        Serial.print(display5);
-        Serial.print(display6);
+        Serial2.print('t');
+        if (maximus.theta < 0)
+            Serial2.print('-');
+        else
+          Serial2.print('+');
+        Serial2.print(display1);
+        Serial2.print(display2);
+        Serial2.print(display3);
+        Serial2.print(display4);
+        Serial2.print(display5);
+        Serial2.print(display6);
 
 
-
-        Serial.print('\n');
-        Serial.print('\r');
+        Serial2.print('\n');
+        Serial2.print('\r');
 
     }
 
-    if ((front_distance < 8) && (has_pawn == NO_PAWN)) {
-        grip_pawn();
-        has_pawn = TAKE_PAWN;
-        stop_robot();
-        delay_ms(400);
-    }
-/*
-    if (global_time_counter == 90) {
-        //set_new_command(&bot_command_delta, (800-41));
-        goto_xy(-1050, 192);
-    }
-    if (global_time_counter == 120) {
-        //set_new_command(&bot_command_alpha, 90);
-        goto_xy(-700, 350);
-    }
-    if (global_time_counter == 150) {
-        //set_new_command(&bot_command_delta, (1400-192));
-        goto_xy(-700, 1600);
-    }
-    if (global_time_counter == 195) {
-        //set_new_command(&bot_command_alpha, 20);
-        //goto_xy(-720, 1660);
-        double x_topawn;
-        double y_topawn;
-        //x_topawn = -875.0;
-        //y_topawn = 1865.0;
-        //move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-        //goto_xy(x_topawn, y_topawn);
 
-        struct Point release_point = find_nearest(&maximus, my_color_points, 18);
-        x_topawn = release_point.x;
-        y_topawn = release_point.y;
-        
-        int sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-        if( sens == 0 ) { // Front
-          goto_xy(x_topawn, y_topawn);
-        }
-        else { // Back
-          goto_xy_back(x_topawn, y_topawn);
-        }
+    if((bot_command_alpha.state == COMMAND_DONE) && (bot_command_delta.state == COMMAND_DONE)) {
+         digitalWrite(13, HIGH);
+ 
+    }
+    else {
+          digitalWrite(13, LOW);
 
     }
 
-    if (global_time_counter == 230) {
-        //set_new_command(&bot_command_delta, 270);
-        release_pawn();
-        set_new_command(&bot_command_delta, -180);
-    }
-    if (global_time_counter == 250) {
-        goto_xy(-700, 350);
-    }
-    if (global_time_counter == 280) {
-        has_pawn = NO_PAWN;
-        //set_new_command(&bot_command_alpha, -20);
-    }
-    if (global_time_counter == 300) {
-        //set_new_command(&bot_command_delta, -(1400-192));
-    }
-*/
-
-    if ((global_time_counter > 90) && (bot_command_alpha.state == COMMAND_DONE) && (bot_command_delta.state == COMMAND_DONE)) { // If all commands are done, go to the next step
-        struct Point release_point;
-        double x_topawn;
-        double y_topawn;
-        int sens;
-
-        switch (has_pawn) {
-        case TAKE_PAWN:                                   // The robot just take a pawn to put in his color
-            release_point = find_nearest(&maximus, my_color_points, 18);
-            x_topawn = release_point.x;
-            y_topawn = release_point.y;
-
-            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-            if (sens == 0) {                               // Front
-                goto_xy(x_topawn, y_topawn);
-            } else {                                       // Back
-                goto_xy_back(x_topawn, y_topawn);
-            }
-
-            has_pawn = GOTO_RELEASE;
-            break;
-
-        case GOTO_RELEASE:                                // The robot have a pawn and is on his release point
-            release_pawn();
-            set_new_command(&bot_command_delta, -180);
-            has_pawn = GO_BACK;
-            break;
-
-        case GO_BACK:                                     // The robot release the pawn and go back to let it in position
-            goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
-            has_pawn = NO_PAWN;
-            break;
-
-        default:                                          // has no pawn => Move to the next position
-            if (way_point_index == 5)
-                way_point_index = 1;
-            goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
-            way_point_index++;
-            break;
-        }
-
-    }
 
     if (Serial.available() >= (1 + 6)) {
         serial_command = Serial.read();
@@ -623,7 +533,17 @@ void loop()
                linear_from_ROS(0);
                break; */
         case 'G':
-            get_goal_from_ROS();
+            //get_goal_from_ROS();
+            digitalWrite(13, LOW);
+            get_goal_xy();
+            break;
+        case 'g':
+            digitalWrite(13, LOW);
+            get_goal_xy_back();
+            break;
+        case 'p':
+            digitalWrite(13, LOW);
+            get_goal_xy_pawn();
             break;
         case 'A':
             set_alpha();
@@ -673,17 +593,8 @@ void loop()
         case 't':
             set_theta();
             break;
-        case 'N':
-            grip_pawn();
-            Serial.read();
-            Serial.read();
-            Serial.read();
-            Serial.read();
-            Serial.read();
-            Serial.read();
-            break;
-        case 'n':
-            release_pawn();
+        case 'Z':
+            output_ON = 1;
             Serial.read();
             Serial.read();
             Serial.read();
@@ -712,15 +623,13 @@ void init_Robot(struct robot *my_robot)
 
 void init_blue_Robot(struct robot *my_robot)
 {
-    my_robot->pos_X = -1459;                               // -700         
+    my_robot->pos_X = -1453;//-1459;                               // -700         
     my_robot->pos_Y = 192;                                 // 700          
     my_robot->theta = 0;                                   // PI/2
     my_robot->yaw = 0.0;
     my_robot->pitch = 0.0;
     my_robot->roll = 0.0;
     my_robot->yaw_offset = 0.0;
-
-    my_color_points = blue_points;
 }
 
 void init_red_Robot(struct robot *my_robot)
@@ -732,8 +641,6 @@ void init_red_Robot(struct robot *my_robot)
     my_robot->pitch = 0.0;
     my_robot->roll = 0.0;
     my_robot->yaw_offset = 0.0;
-
-    my_color_points = red_points;
 }
 
 void init_Command(struct RobotCommand *cmd)
@@ -783,8 +690,8 @@ void init_motors(void)
     alpha_motor.kI = 0;
     alpha_motor.kD = 200;                                  // 100 * 1.09
     alpha_motor.accel = 200;                               // 300
-    alpha_motor.decel = 1000;                              // 500
-    alpha_motor.max_speed = 6000;                          //8000
+    alpha_motor.decel = 1200;                              // 500
+    alpha_motor.max_speed = 8000;                          //8000
     alpha_motor.distance = 0.0;
 
     /* Delta motor initialization */
@@ -797,118 +704,11 @@ void init_motors(void)
     delta_motor.kI = 0;
     delta_motor.kD = 200;                                  // 100 * 1.09
     delta_motor.accel = 500;
-    delta_motor.decel = 1000;
-    delta_motor.max_speed = 30000;
+    delta_motor.decel = 1200;
+    delta_motor.max_speed = 35000;
     delta_motor.distance = 0.0;
 }
 
-void init_color_points(void)
-{
-    /* Red points */
-    red_points[0].x = -175 + 350 + 350;
-    red_points[1].x = -175;
-    red_points[2].x = -175 - 350 - 350;
-    red_points[0].y = 175;
-    red_points[1].y = 175;
-    red_points[2].y = 175;
-
-    red_points[3].x = 175 + 350 + 350;
-    red_points[4].x = 175;
-    red_points[5].x = 175 - 350 - 350;
-    red_points[3].y = 175 + 350;
-    red_points[4].y = 175 + 350;
-    red_points[5].y = 175 + 350;
-
-    red_points[6].x = -175 + 350 + 350;
-    red_points[7].x = -175;
-    red_points[8].x = -175 - 350 - 350;
-    red_points[6].y = 175 + 350 + 350;
-    red_points[7].y = 175 + 350 + 350;
-    red_points[8].y = 175 + 350 + 350;
-
-    red_points[9].x = 175 + 350 + 350;
-    red_points[10].x = 175;
-    red_points[11].x = 175 - 350 - 350;
-    red_points[9].y = 175 + 350 + 350 + 350;
-    red_points[10].y = 175 + 350 + 350 + 350;
-    red_points[11].y = 175 + 350 + 350 + 350;
-
-    red_points[12].x = -175 + 350 + 350;
-    red_points[13].x = -175;
-    red_points[14].x = -175 - 350 - 350;
-    red_points[12].y = 175 + 350 + 350 + 350 + 350;
-    red_points[13].y = 175 + 350 + 350 + 350 + 350;
-    red_points[14].y = 175 + 350 + 350 + 350 + 350;
-
-    red_points[15].x = 175 + 350 + 350;
-    red_points[16].x = 175;
-    red_points[17].x = 175 - 350 - 350;
-    red_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-    red_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
-    red_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-
-    /* Blue points */
-    blue_points[0].x = 175 + 350 + 350;
-    blue_points[1].x = 175;
-    blue_points[2].x = 175 - 350 - 350;
-    blue_points[0].y = 175;
-    blue_points[1].y = 175;
-    blue_points[2].y = 175;
-
-    blue_points[3].x = -175 + 350 + 350;
-    blue_points[4].x = -175;
-    blue_points[5].x = -175 - 350 - 350;
-    blue_points[3].y = 175 + 350;
-    blue_points[4].y = 175 + 350;
-    blue_points[5].y = 175 + 350;
-
-    blue_points[6].x = 175 + 350 + 350;
-    blue_points[7].x = 175;
-    blue_points[8].x = 175 - 350 - 350;
-    blue_points[6].y = 175 + 350 + 350;
-    blue_points[7].y = 175 + 350 + 350;
-    blue_points[8].y = 175 + 350 + 350;
-
-    blue_points[9].x = -175 + 350 + 350;
-    blue_points[10].x = -175;
-    blue_points[11].x = -175 - 350 - 350;
-    blue_points[9].y = 175 + 350 + 350 + 350;
-    blue_points[10].y = 175 + 350 + 350 + 350;
-    blue_points[11].y = 175 + 350 + 350 + 350;
-
-    blue_points[12].x = 175 + 350 + 350;
-    blue_points[13].x = 175;
-    blue_points[14].x = 175 - 350 - 350;
-    blue_points[12].y = 175 + 350 + 350 + 350 + 350;
-    blue_points[13].y = 175 + 350 + 350 + 350 + 350;
-    blue_points[14].y = 175 + 350 + 350 + 350 + 350;
-
-    blue_points[15].x = -175 + 350 + 350;
-    blue_points[16].x = -175;
-    blue_points[17].x = -175 - 350 - 350;
-    blue_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-    blue_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
-    blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-
-}
-
-void init_way_points(void)
-{
-    way_points[0].x = -1100;
-    way_points[0].y = 192;
-    way_points[1].x = -700;
-    way_points[1].y = 350;
-    way_points[2].x = -700;
-    way_points[2].y = 1600;
-
-    way_points[3].x = -350;
-    way_points[3].y = 1400;
-    way_points[4].x = -350;
-    way_points[4].y = 350;
-    way_points[5].x = -700;
-    way_points[5].y = 350;
-
-}
 
 /***********************/
 /* ROBO CLAW FUNCTIONS */
@@ -1368,24 +1168,6 @@ void get_Odometers(void)
 
 }
 
-/******************/
-/* A.I. Functions */
-/******************/
-struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
-{
-    struct Point result;
-    double best_distance = 99999.9;
-    for (int i = 0; i < size; i++) {
-        double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
-        if (distance < best_distance) {
-            best_distance = distance;
-            result.x = tab[i].x;
-            result.y = tab[i].y;
-        }
-    }
-    return result;
-}
-
 /***********************/
 /* Interface Functions */
 /***********************/
@@ -1550,16 +1332,16 @@ void set_alpha(void)
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-
-        set_new_command(&bot_command_alpha, (float) tmp / (100));
+        tmp = (tmp * 10) + (Serial.read() - 48);
+        set_new_command(&bot_command_alpha, (float) tmp / (1000));
     } else {
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-
-        set_new_command(&bot_command_alpha, (float) tmp / (-100));
+        tmp = (tmp * 10) + (Serial.read() - 48);
+        set_new_command(&bot_command_alpha, (float) tmp / (-1000));
     }
 }
 
@@ -1572,7 +1354,7 @@ void set_delta(void)
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-
+        tmp = (tmp * 10) + (Serial.read() - 48);
         set_new_command(&bot_command_delta, (float) tmp / (10));
     } else {
         tmp = (tmp * 10) + (Serial.read() - 48);
@@ -1580,7 +1362,7 @@ void set_delta(void)
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-
+        tmp = (tmp * 10) + (Serial.read() - 48);
         set_new_command(&bot_command_delta, (float) tmp / (-10));
     }
 }
@@ -1619,7 +1401,7 @@ void set_X(void)
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-        maximus.pos_X = (double) tmp / 100;
+        maximus.pos_X = (double) tmp / 10;
     } else {
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
@@ -1627,7 +1409,7 @@ void set_X(void)
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-        maximus.pos_X = -(double) tmp / 100;
+        maximus.pos_X = -(double) tmp / 10;
     }
 }
 
@@ -1641,7 +1423,7 @@ void set_Y(void)
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-        maximus.pos_Y = (double) tmp / 100;
+        maximus.pos_Y = (double) tmp / 10;
     } else {
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
@@ -1649,7 +1431,7 @@ void set_Y(void)
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
         tmp = (tmp * 10) + (Serial.read() - 48);
-        maximus.pos_Y = -(double) tmp / 100;
+        maximus.pos_Y = -(double) tmp / 10;
     }
 }
 
@@ -1675,14 +1457,150 @@ void set_theta(void)
     }
 }
 
-void grip_pawn(void)
+void get_goal_xy(void)
 {
-    gripServo_right.write(30);
-    gripServo_left.write(160);
+    double x = 0, y = 0;
+
+    if(Serial.read() == '+') {
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = x / (10);
+    }
+    else {
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = x / (-10);
+    }
+    
+    if(Serial.read() == '+') {
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = y / 10;
+    }
+    else {
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = y / (-10);  
+    }
+
+    goto_xy(((double) x), ((double) y));
 }
 
-void release_pawn(void)
+void get_goal_xy_back(void)
 {
-    gripServo_right.write(70);
-    gripServo_left.write(110);
+    double x = 0, y = 0;
+
+    if(Serial.read() == '+') {
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = x / (10);
+    }
+    else {
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = x / (-10);
+    }
+    
+    if(Serial.read() == '+') {
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = y / 10;
+    }
+    else {
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = y / (-10);  
+    }
+
+    goto_xy_back(((double) x), ((double) y));
 }
+
+void get_goal_xy_pawn(void)
+{
+double x_topawn;
+  double y_topawn;
+  int sens;
+
+  double x = 0, y = 0;
+
+    if(Serial.read() == '+') {
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = x / (10);
+    }
+    else {
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = (x * 10) + (Serial.read() - 48);
+    x = x / (-10);
+    }
+    
+    if(Serial.read() == '+') {
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = y / 10;
+    }
+    else {
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = (y * 10) + (Serial.read() - 48);
+    y = y / (-10);  
+    }
+
+  x_topawn = ((double) x);
+  y_topawn = ((double) y);
+            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+            if (sens == 0) {                               // Front
+                goto_xy(x_topawn, y_topawn);
+            } else {                                       // Back
+                goto_xy_back(x_topawn, y_topawn);
+            }
+
+}
+

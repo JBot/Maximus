@@ -4,11 +4,11 @@ API for the communication with the "Motion_Control" module :
 - Protocole : 
     Serial TTL @ 115200 bauds
 - To send the initial position in X :
-    write in the serial port : "Xsxxxxxx" where xxxxxx is the x coordinate in 1/10th of millimeter and s is the sign (so + or -)
+    write in the serial port : "xsXXXXXX" where XXXXXX is the x coordinate in 1/10th of millimeter and s is the sign (so + or -)
 - To send the initial position in Y :
-    write in the serial port : "Ysyyyyyy" where yyyyyy is the y coordinate in 1/10th of millimeter and s is the sign (so + or -)
+    write in the serial port : "ysYYYYYY" where YYYYYY is the y coordinate in 1/10th of millimeter and s is the sign (so + or -)
 - To send the initial position in Alpha :
-    write in the serial port : "Asaaaaaa" where aaaaaa is the a coordinate in 1/1000th of degree and s is the sign (so + or -)
+    write in the serial port : "tsAAAAAA" where AAAAAA is the a coordinate in 1/1000th of degree and s is the sign (so + or -)
 - To send a new goal to reach :
     write in the serial port : "Gsxxxxxxsyyyyyy" where xxxxxx is the x coordinate in 1/10th of millimeter, yyyyyy is the y coordinate in 1/10th of millimeter and s is the sign (so + or -)
 - Datas sent by the module :
