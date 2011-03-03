@@ -334,8 +334,8 @@ void setup()
 
 
     // Mode Debug
-    //Serial.begin(9600);
-    Serial.begin(115200);
+    Serial.begin(57600);
+    //Serial.begin(115200);
     Serial1.begin(38400);
     // Bluetooth
     Serial2.begin(115200);
@@ -385,7 +385,7 @@ void loop()
 
     global_time_counter++;
 
-    if ((output_ON == 1) && (global_time_counter == 4)) {
+    if ((output_ON == 1) && (global_time_counter >= 4)) {
         global_time_counter = 0;
         //get_Odometers();
         /* Display for ROS */
@@ -869,18 +869,17 @@ write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM1, si
 void do_motion_control(void)
 {
     // PID distance
-    if ((bot_command_alpha.state == WAITING_BEGIN)
-        || (bot_command_alpha.state == PROCESSING_COMMAND)) {   // If alpha motor have not finished its movement 
+    if ((bot_command_alpha.state == WAITING_BEGIN) || (bot_command_alpha.state == PROCESSING_COMMAND)) {   // If alpha motor have not finished its movement 
 
     } else {
-        if ((bot_command_delta.state != PROCESSING_COMMAND)
-            && (prev_bot_command_delta.state == WAITING_BEGIN)) {
+        if ((bot_command_delta.state != PROCESSING_COMMAND) && (prev_bot_command_delta.state == WAITING_BEGIN)) {
             prev_bot_command_delta.state = PROCESSING_COMMAND;
             set_new_command(&bot_command_delta, prev_bot_command_delta.desired_distance);
         }
-    }
     delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
 
+    }
+    
 
     // PID angle
     alpha_motor.des_speed = compute_position_PID(&bot_command_alpha, &alpha_motor);
