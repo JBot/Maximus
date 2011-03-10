@@ -1,7 +1,7 @@
 /*****************************************************
 Project : Maximus
 Version : 1.0
-Date : 10/12/2010
+Date : 13/02/2011
 Author : JBot
 Company :
 Comments:
@@ -11,7 +11,6 @@ Clock frequency : 16,00 MHz
  *****************************************************/
 // Arduino specific includes
 #include <Servo.h>
-#include <SoftwareSerial.h>
 
 // Other includes
 #include <avr/io.h>
@@ -19,12 +18,6 @@ Clock frequency : 16,00 MHz
 #include <avr/interrupt.h>
 #include <math.h>
 #include <ctype.h>
-
-#define bit9600Delay 84
-#define halfBit9600Delay 42
-#define bit4800Delay 188
-#define halfBit4800Delay 94
-
 
 /* Wait function */
 void delay_ms(uint16_t millis)
@@ -40,9 +33,10 @@ void delay_ms(uint16_t millis)
 /* Defines */
 /***********/
 #define TWOPI 			6.2831853070
-#define RAD2DEG 		57.29577951                    /* radians to degrees conversion */
+#define RAD2DEG 		57.29577951                /* radians to degrees conversion */
 
-#define DISTANCE_CENTER_PAWN    240.0
+#define DISTANCE_CENTER_PAWN    240.0                      // Distance between the center of the pawn and the center of the 2 wheels
+#define DISTANCE_REAR_WHEELS    45                         // Distance between the rear of the robot and the center of the 2 wheels
 
 #define NO_PAWN                 0
 #define TAKE_PAWN               1
@@ -56,7 +50,13 @@ void delay_ms(uint16_t millis)
 #define PAWN_SENSOR             9
 #define RIGHT_IR_SENSOR         10
 #define LEFT_IR_SENSOR          11
+#define LIFT_MOTOR_PWM		40 // A DEFINIR
+#define LIFT_MOTOR_SENS		16 // A DEFINIR
+#define LIFT_SWITCH_UP          20
+#define LIFT_SWITCH_DOWN        21
 
+#define LIFT_GO_UP		HIGH
+#define LIFT_GO_DOWN		LOW
 
 /***********************/
 /* Specific structures */
@@ -74,7 +74,6 @@ struct Point {
 
 
 
-
 /********************/
 /* Global variables */
 /********************/
@@ -89,7 +88,7 @@ Servo gripServo_left;
 int front_distance = 50;
 int prev_front_distance = 50;
 
-long global_time_counter = 0;
+unsigned long global_time_counter = 0;
 char has_pawn = NO_PAWN;
 
 struct Point red_points[18];
@@ -101,7 +100,7 @@ struct Point way_points[20];
 int way_point_index = 0;
 
 char start_MOTION = 0;
-
+char turn_counter = 0;
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -112,70 +111,71 @@ ISR(TIMER1_OVF_vect)
     sei();                                                 // enable interrupts
 
     // Get the robot's position
-    if (Serial.available() >= 10) {
-      double x = 0, y = 0, t = 0;
+    if (Serial1.available() >= 24) {
+        double x = 0, y = 0, t = 0;
 
-    Serial.read(); // x
-    if(Serial.read() == '+') {
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = x / (10);
-    }
-    else {
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = x / (-10);
-    }
-    
-    Serial.read(); // y
-    if(Serial.read() == '+') {
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = y / 10;
-    }
-    else {
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = y / (-10);  
-    }
+        Serial1.read();                                     // x
+        if (Serial1.read() == '+') {
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = x / (10);
+        } else {
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = (x * 10) + (Serial1.read() - 48);
+            x = x / (-10);
+        }
 
-    Serial.read(); // theta in RAD
-    if(Serial.read() == '+') {
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = t / 10000; 
-    }
-    else {
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = (t * 10) + (Serial.read() - 48);
-    t = t / (-10000);  
-    }
-      
-      
+        Serial1.read();                                     // y
+        if (Serial1.read() == '+') {
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = y / 10;
+        } else {
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = (y * 10) + (Serial1.read() - 48);
+            y = y / (-10);
+        }
+
+        Serial1.read();                                     // theta in RAD
+        if (Serial1.read() == '+') {
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = t / 10000;
+        } else {
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = (t * 10) + (Serial1.read() - 48);
+            t = t / (-10000);
+        }
+
+
+        maximus.pos_X = x;
+        maximus.pos_Y = y;
+        maximus.theta = t;
+
     }
 
 
@@ -237,7 +237,7 @@ void setup()
 */
     pinMode(13, OUTPUT);
 
-    pinMode(INPUT_MOTION_PIN, INPUT);     
+    pinMode(INPUT_MOTION_PIN, INPUT);
 
 
     // Initialize Timer interrupts
@@ -288,16 +288,16 @@ void setup()
 
     //List of modules to connect :
     // - Motion control
-    // - GUI
-    // - Pawn module
+    // - LCD and color selector
+    // - BarCode reader
     // - Power module
-    // - Bluetooth debug  
+    // - Xbee debug  
     // Initialize all serial ports:
 //    Serial.begin(115200);                                  // Bluetooth serial port
-    Serial.begin(9600);                                  // Bluetooth serial port
-    Serial1.begin(115200);                                 // Motion control serial port
-    Serial2.begin(115200);                                 // Pawn module
-    Serial3.begin(115200);                                 // Optionnal module
+    Serial.begin(57600);                                    // Bluetooth serial port
+    Serial1.begin(57600);                                 // Motion control serial port
+    Serial2.begin(115200);                                 // BarCode reader
+    Serial3.begin(57600);                                 // Color module
 
     // POWER MODULE SERIAL CONNEXION
     /*pinMode(22,INPUT); // RX
@@ -305,19 +305,24 @@ void setup()
        digitalWrite(23,HIGH);// TX to 1 */
 
 
-
+/*
     gripServo_right.attach(RIGHT_SERVO);
     gripServo_left.attach(LEFT_SERVO);
+
+    PAWN_release_pawn();
+*/
+
+    delay_ms(1000);
     
-    release_pawn();
-
-
-
     /******************************/
     /* Initialization of the code */
     /******************************/
     init_blue_Robot(&maximus);                             // Init robot status
 
+    init_MOTION_module_positions(&maximus);
+
+    init_PAWN_status();
+    
     init_color_points();                                   // Init the color field
     init_way_points();
 
@@ -331,7 +336,21 @@ void setup()
     digitalWrite(13, HIGH);
     delay_ms(300);
 
+    delay_ms(1000);
+    Serial3.print('C');
+    delay_ms(10);
+    int color_serial_in = Serial3.read(); 
+    while( (color_serial_in != 'B') && (color_serial_in != 'R') ) {
+      delay_ms(100);
+      Serial3.print('C');
+      delay_ms(10);
+      color_serial_in = Serial3.read();
+      //Serial.print(color_serial_in, BYTE);
+    }
 
+    delay_ms(1000);
+    
+    
     Serial1.print('Z');
     Serial1.print(0);
     Serial1.print(0);
@@ -340,56 +359,121 @@ void setup()
     Serial1.print(0);
     Serial1.print(0);
 
+
+    // WAIT START COMMAND
+	
+
+    PAWN_release_pawn();
+
 }
 
 void loop()
 {
 
     delay_ms(50);
-    
+
     global_time_counter++;
 
     /*if ((front_distance < 8) && (has_pawn == NO_PAWN)) {
-//        grip_pawn();
-        has_pawn = TAKE_PAWN;
-        MOTION_stop_robot();
-        delay_ms(400);
-    }*/
+       //        grip_pawn();
+       has_pawn = TAKE_PAWN;
+       MOTION_stop_robot();
+       delay_ms(400);
+       } */
 
-    entier = (unsigned int) abs(front_distance);
-    display6 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display5 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display4 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display3 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display2 = (entier % 10) + 48;
-    entier = (unsigned int) (entier / 10);
-    display1 = (entier % 10) + 48;
+        /* Display for ROS */
+        entier = (unsigned int) fabs(maximus.pos_X * 10);
+        display6 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display5 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display4 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display3 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display2 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display1 = (entier % 10) + 48;
+        Serial.print('x');
+        if (maximus.pos_X < 0)
+            Serial.print('-');
+        else
+            Serial.print('+');
+        Serial.print(display1);
+        Serial.print(display2);
+        Serial.print(display3);
+        Serial.print(display4);
+        Serial.print(display5);
+        Serial.print(display6);
 
-    if (front_distance < 0)
-        Serial.print('-');
-    else
-        Serial.print('+');
-    Serial.print(display1);
-    Serial.print(display2);
-    Serial.print(display3);
-    Serial.print(display4);
-    Serial.print(display5);
-    Serial.print(display6);
+        entier = (unsigned int) fabs(maximus.pos_Y * 10);
+        display6 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display5 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display4 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display3 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display2 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display1 = (entier % 10) + 48;
+        Serial.print('y');
+        if (maximus.pos_Y < 0)
+            Serial.print('-');
+        else
+            Serial.print('+');
+        Serial.print(display1);
+        Serial.print(display2);
+        Serial.print(display3);
+        Serial.print(display4);
+        Serial.print(display5);
+        Serial.print(display6);
 
-  Serial.print('\n');
-  
-  
-     if ((global_time_counter > 90) && (digitalRead(INPUT_MOTION_PIN))) { // If all commands are done, go to the next step
+        entier = (unsigned int) fabs(maximus.theta * 10000);
+        //entier = (unsigned int) fabs(maximus.theta * RAD2DEG * 10);
+        display6 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display5 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display4 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display3 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display2 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display1 = (entier % 10) + 48;
+        Serial.print('t');
+        if (maximus.theta < 0)
+            Serial.print('-');
+        else
+            Serial.print('+');
+        Serial.print(display1);
+        Serial.print(display2);
+        Serial.print(display3);
+        Serial.print(display4);
+        Serial.print(display5);
+        Serial.print(display6);
+
+
+    //Serial.println(way_point_index);
+    Serial.print('\n');
+    Serial.print('\r');
+
+
+
+
+
+
+
+    if ((global_time_counter > 20) && (digitalRead(INPUT_MOTION_PIN))) {        // If all commands are done, go to the next step
+        global_time_counter = 21;
         struct Point release_point;
         double x_topawn;
         double y_topawn;
         int sens;
 
-        switch (has_pawn) {
+        /*switch (has_pawn) {
         case TAKE_PAWN:                                   // The robot just take a pawn to put in his color
             release_point = find_nearest(&maximus, my_color_points, 18);
             x_topawn = release_point.x;
@@ -415,18 +499,30 @@ void loop()
             MOTION_goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
             has_pawn = NO_PAWN;
             break;
-
-        default:                                          // has no pawn => Move to the next position
-            if (way_point_index == 5)
+*/
+        //default:                                          // has no pawn => Move to the next position
+            if(turn_counter < 3) {
+            if (way_point_index >= 5) {
                 way_point_index = 1;
+                turn_counter++;
+            }
+            
             MOTION_goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
             way_point_index++;
-            break;
-        }
+            }
+            else {
+              if (turn_counter == 3) {
+                MOTION_goto_xy_back(-700, 200);
+                turn_counter++;
+              }
+            }
+            //Serial.println('X');
+          //  break;
+        //}
 
     }
 
-  
+
 
 
 }
@@ -437,14 +533,14 @@ void loop()
 /****************************/
 void init_Robot(struct robot *my_robot)
 {
-    my_robot->pos_X = -1459;                               // -700         
+    my_robot->pos_X = -1500 + DISTANCE_REAR_WHEELS;//-1459;                               // -700         
     my_robot->pos_Y = 192;                                 // 700          
     my_robot->theta = 0;                                   // PI/2
 }
 
 void init_blue_Robot(struct robot *my_robot)
 {
-    my_robot->pos_X = -1459;                               // -700         
+    my_robot->pos_X = -1500 + DISTANCE_REAR_WHEELS;//-1459;                               // -700         
     my_robot->pos_Y = 192;                                 // 700          
     my_robot->theta = 0;                                   // PI/2
 
@@ -453,11 +549,17 @@ void init_blue_Robot(struct robot *my_robot)
 
 void init_red_Robot(struct robot *my_robot)
 {
-    my_robot->pos_X = 1459;                                // -700         
+    my_robot->pos_X = 1500 - DISTANCE_REAR_WHEELS;//1459;                                // -700         
     my_robot->pos_Y = 192;                                 // 700          
     my_robot->theta = PI;                                  // PI/2
 
     my_color_points = red_points;
+}
+
+void init_MOTION_module_positions(struct robot *my_robot) {
+    MOTION_set_X(my_robot->pos_X);
+    MOTION_set_Y(my_robot->pos_Y);
+    MOTION_set_theta(my_robot->theta); 
 }
 
 void init_color_points(void)
@@ -560,14 +662,46 @@ void init_way_points(void)
     way_points[2].y = 1600;
 
     way_points[3].x = -350;
-    way_points[3].y = 1400;
+    way_points[3].y = 1600;//1400;
     way_points[4].x = -350;
     way_points[4].y = 350;
     way_points[5].x = -700;
     way_points[5].y = 350;
 
+    way_points[6].x = -700;
+    way_points[6].y = 350;
+    way_points[7].x = -700;
+    way_points[7].y = 350;
+    way_points[8].x = -700;
+    way_points[8].y = 350;
+    way_points[9].x = -700;
+    way_points[9].y = 350;
+
 }
 
+void init_PAWN_status(void)
+{
+    pinMode(LIFT_MOTOR_PWM, OUTPUT);
+    pinMode(LIFT_MOTOR_SENS, OUTPUT);
+
+    pinMode(LIFT_SWITCH_UP, INPUT);
+    pinMode(LIFT_SWITCH_DOWN, INPUT);
+    
+    gripServo_right.attach(RIGHT_SERVO);
+    gripServo_left.attach(LEFT_SERVO);
+
+    //PAWN_release_pawn();
+    PAWN_grip_pawn();
+	
+}
+
+
+
+
+
+/******************/
+/* COMPUTING Functions */
+/******************/
 
 // Compute the distance to do to go to (x, y)
 double distance_coord(struct robot *my_robot, double x1, double y1)
@@ -641,6 +775,11 @@ struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
     return result;
 }
 
+void reinit_y_axis(void)
+{
+  
+}
+
 
 /*************************************/
 /* COMMUNICATION WITH MOTION CONTROL */
@@ -702,7 +841,7 @@ void MOTION_goto_xy(double x, double y)
 
 void MOTION_goto_xy_back(double x, double y)
 {
-    Serial1.print('g');                                    
+    Serial1.print('g');
 
 
     entier = (unsigned int) fabs(x * 10);
@@ -757,7 +896,7 @@ void MOTION_goto_xy_back(double x, double y)
 // Compute the coordinate to put a pawn to (x, y)
 int MOTION_move_pawn_to_xy(double x, double y)
 {
-    Serial1.print('p');                                    
+    Serial1.print('p');
 
 
     entier = (unsigned int) fabs(x * 10);
@@ -932,9 +1071,10 @@ void MOTION_stop_robot(void)
     Serial1.print(0);
 }
 
-void MOTION_set_delta(double delta) {
-  Serial1.print('D');
-  
+void MOTION_set_delta(double delta)
+{
+    Serial1.print('D');
+
     entier = (unsigned int) fabs(delta * 10);
     display6 = (entier % 10) + 48;
     entier = (unsigned int) (entier / 10);
@@ -958,12 +1098,13 @@ void MOTION_set_delta(double delta) {
     Serial1.print(display4);
     Serial1.print(display5);
     Serial1.print(display6);
-  
+
 }
 
-void MOTION_set_alpha(double alpha) {
-  Serial1.print('A');
-  
+void MOTION_set_alpha(double alpha)
+{
+    Serial1.print('A');
+
     entier = (unsigned int) fabs(alpha * 1000);
     display6 = (entier % 10) + 48;
     entier = (unsigned int) (entier / 10);
@@ -987,7 +1128,7 @@ void MOTION_set_alpha(double alpha) {
     Serial1.print(display4);
     Serial1.print(display5);
     Serial1.print(display6);
-  
+
 }
 
 
@@ -1001,15 +1142,48 @@ void MOTION_set_alpha(double alpha) {
 /**********************************/
 /* COMMUNICATION WITH PAWN MODULE */
 /**********************************/
-void grip_pawn(void)
+void PAWN_grip_pawn(void)
 {
     gripServo_right.write(90);
     gripServo_left.write(90);
 }
 
-void release_pawn(void)
+void PAWN_release_pawn(void)
 {
     gripServo_right.write(170);
     gripServo_left.write(10);
 }
 
+void PAWN_go_up(void)
+{
+        int buttonState = 0;
+	// Start going up
+	digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_UP);
+	analogWrite(LIFT_MOTOR_PWM, 75);
+	// Stop when the microswitch in activated
+	buttonState = digitalRead(LIFT_SWITCH_UP);
+        while(buttonState == 1) {
+          delay_ms(20);
+          buttonState = digitalRead(LIFT_SWITCH_UP);
+	}
+        // Stop
+        analogWrite(LIFT_MOTOR_PWM, 0);
+	
+}
+
+void PAWN_go_down(void)
+{
+        int buttonState = 0;
+	// Start going up
+	digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_DOWN);
+	analogWrite(LIFT_MOTOR_PWM, 100);
+	// Stop when the microswitch in activated
+	buttonState = digitalRead(LIFT_SWITCH_DOWN);
+        while(buttonState == 1) {
+          delay_ms(20);
+          buttonState = digitalRead(LIFT_SWITCH_DOWN);
+	}
+        // Stop
+        analogWrite(LIFT_MOTOR_PWM, 0);
+	
+}

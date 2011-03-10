@@ -1,7 +1,7 @@
 /*****************************************************
 Project : Maximus
-Version : 5.3
-Date : 08/12/2010
+Version : 5.4
+Date : 03/03/2010
 Author : JBot
 Company :
 Comments:
@@ -35,9 +35,9 @@ void delay_ms(uint16_t millis)
 /***********/
 /* Defines */
 /***********/
-#define TICK_PER_MM_LEFT 	91.143671935
-#define TICK_PER_MM_RIGHT 	91.143671935
-#define DIAMETER 		195.0        //155.0                      // Distance between the 2 wheels
+#define TICK_PER_MM_LEFT 	9.2628378129  // 90.9456817668
+#define TICK_PER_MM_RIGHT 	9.2628378129  // 90.9456817668
+#define DIAMETER 		272.0 //275.0 // 166.0         // Distance between the 2 wheels
 
 #define TWOPI 			6.2831853070
 #define RAD2DEG 		57.2958                    /* radians to degrees conversion */
@@ -73,7 +73,7 @@ struct motor {
     signed long accel;
     signed long decel;
     signed long max_speed;
-    float distance;
+    double distance;
 };
 
 struct robot {
@@ -125,7 +125,7 @@ int last_right = 0;
 int left_diff = 0;
 int right_diff = 0;
 
-float total_distance = 0.0;
+double total_distance = 0.0;
 
 unsigned int entier;
 char display1, display2, display3, display4, display5, display6, display7;
@@ -385,7 +385,7 @@ void loop()
 
     global_time_counter++;
 
-    if ((output_ON == 1) && (global_time_counter >= 4)) {
+    if ((output_ON == 1) && (global_time_counter >= 8)) {
         global_time_counter = 0;
         //get_Odometers();
         /* Display for ROS */
@@ -412,7 +412,7 @@ void loop()
         Serial.print(display4);
         Serial.print(display5);
         Serial.print(display6);
-        
+/*        
         Serial2.print('x');
         if (maximus.pos_X < 0)
             Serial2.print('-');
@@ -424,7 +424,7 @@ void loop()
         Serial2.print(display4);
         Serial2.print(display5);
         Serial2.print(display6);
-
+*/
         entier = (unsigned int) fabs(maximus.pos_Y * 10);
         display6 = (entier % 10) + 48;
         entier = (unsigned int) (entier / 10);
@@ -448,7 +448,7 @@ void loop()
         Serial.print(display4);
         Serial.print(display5);
         Serial.print(display6);
-
+/*
         Serial2.print('y');
         if (maximus.pos_Y < 0)
             Serial2.print('-');
@@ -460,7 +460,7 @@ void loop()
         Serial2.print(display4);
         Serial2.print(display5);
         Serial2.print(display6);
-
+*/
 
         entier = (unsigned int) fabs(maximus.theta * 10000);
         //entier = (unsigned int) fabs(maximus.theta * RAD2DEG * 10);
@@ -486,7 +486,7 @@ void loop()
         Serial.print(display4);
         Serial.print(display5);
         Serial.print(display6);
-
+/*
         Serial2.print('t');
         if (maximus.theta < 0)
             Serial2.print('-');
@@ -499,10 +499,37 @@ void loop()
         Serial2.print(display5);
         Serial2.print(display6);
 
+*/
+/*
+        entier = (unsigned int) fabs(total_distance*10);
+        //entier = (unsigned int) fabs(maximus.theta * RAD2DEG * 10);
+        display6 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display5 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display4 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display3 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display2 = (entier % 10) + 48;
+        entier = (unsigned int) (entier / 10);
+        display1 = (entier % 10) + 48;
+        Serial.print('D');
+        if (total_distance < 0)
+            Serial.print('-');
+        else
+          Serial.print('+');
+        Serial.print(display1);
+        Serial.print(display2);
+        Serial.print(display3);
+        Serial.print(display4);
+        Serial.print(display5);
+        Serial.print(display6);
 
-        Serial2.print('\n');
-        Serial2.print('\r');
 
+        Serial.print('\n');
+        Serial.print('\r');
+*/
     }
 
 
@@ -623,7 +650,7 @@ void init_Robot(struct robot *my_robot)
 
 void init_blue_Robot(struct robot *my_robot)
 {
-    my_robot->pos_X = -1453;//-1459;                               // -700         
+    my_robot->pos_X = -1455;//-1459;                               // -700         
     my_robot->pos_Y = 192;                                 // 700          
     my_robot->theta = 0;                                   // PI/2
     my_robot->yaw = 0.0;
@@ -686,12 +713,12 @@ void init_motors(void)
     alpha_motor.cur_speed = 0;
     alpha_motor.last_error = 0;
     alpha_motor.error_sum = 0;
-    alpha_motor.kP = 600;                                  // 600
+    alpha_motor.kP = 350;                                  // 600
     alpha_motor.kI = 0;
-    alpha_motor.kD = 200;                                  // 100 * 1.09
+    alpha_motor.kD = 180;                                  // 200
     alpha_motor.accel = 200;                               // 300
-    alpha_motor.decel = 1200;                              // 500
-    alpha_motor.max_speed = 8000;                          //8000
+    alpha_motor.decel = 1100;//1200;                              // 500
+    alpha_motor.max_speed = 7000;                          //8000
     alpha_motor.distance = 0.0;
 
     /* Delta motor initialization */
@@ -703,9 +730,9 @@ void init_motors(void)
     delta_motor.kP = 600;                                  // 600
     delta_motor.kI = 0;
     delta_motor.kD = 200;                                  // 100 * 1.09
-    delta_motor.accel = 500;
-    delta_motor.decel = 1200;
-    delta_motor.max_speed = 35000;
+    delta_motor.accel = 400;//500;
+    delta_motor.decel = 1100;//1200;
+    delta_motor.max_speed = 25000;//35000;
     delta_motor.distance = 0.0;
 }
 
