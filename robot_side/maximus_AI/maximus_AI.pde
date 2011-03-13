@@ -1,7 +1,7 @@
 /*****************************************************
 Project : Maximus
-Version : 1.0
-Date : 13/02/2011
+Version : 1.1
+Date : 13/03/2011
 Author : JBot
 Company :
 Comments:
@@ -47,16 +47,38 @@ void delay_ms(uint16_t millis)
 #define INPUT_MOTION_PIN        2
 #define RIGHT_SERVO             12
 #define LEFT_SERVO              11
-#define PAWN_SENSOR             9
-#define RIGHT_IR_SENSOR         10
-#define LEFT_IR_SENSOR          11
+#define PAWN_SENSOR_LEFT        0 // A DEFINIR
+#define PAWN_SENSOR             1 // A DEFINIR
+#define PAWN_SENSOR_RIGHT       2 // A DEFINIR
+#define OPPONENT_SENSOR_LEFT    3 // A DEFINIR
+#define OPPONENT_SENSOR_RIGHT   4 // A DEFINIR
+#define RIGHT_IR_SENSOR         10 // A DEFINIR
+#define LEFT_IR_SENSOR          11 // A DEFINIR
 #define LIFT_MOTOR_PWM		40 // A DEFINIR
 #define LIFT_MOTOR_SENS		16 // A DEFINIR
 #define LIFT_SWITCH_UP          20
 #define LIFT_SWITCH_DOWN        21
+#define BEACON_NORTH_PIN	45 // A DEFINIR
+#define BEACON_SOUTH_PIN	46 // A DEFINIR
+#define BEACON_EAST_PIN	        47 // A DEFINIR
+#define BEACON_WEST_PIN	        48 // A DEFINIR
+#define LEFT_REAR_SENSOR        30 // A DEFINIR
+#define RIGHT_REAR_SENSOR       31 // A DEFINIR
+
+
 
 #define LIFT_GO_UP		HIGH
 #define LIFT_GO_DOWN		LOW
+
+#define SECURE_PAWN             0 // First phase to secure 2 pawn in the secure zones
+#define CREATE_TOWER            1 // Seconde phase to build 2 tower and place it on the right color
+#define PLACING_PAWN            2 // Last phase to moving on the table and take the enemy pawns
+
+#define BEACON_NORTH            0
+#define BEACON_SOUTH            1
+#define BEACON_EAST             2
+#define BEACON_WEST             3
+
 
 /***********************/
 /* Specific structures */
@@ -82,10 +104,17 @@ struct robot maximus;
 unsigned int entier;
 char display1, display2, display3, display4, display5, display6, display7;
 
+// Servo-motors
 Servo gripServo_right;
 Servo gripServo_left;
 
-int front_distance = 50;
+// IR sensors
+int front_distance_down_left = 50;
+int front_distance_down_middle = 50;
+int front_distance_down_right = 50;
+int front_distance_up_left = 50;
+int front_distance_up_right = 50;
+
 int prev_front_distance = 50;
 
 unsigned long global_time_counter = 0;
@@ -101,6 +130,10 @@ int way_point_index = 0;
 
 char start_MOTION = 0;
 char turn_counter = 0;
+
+char pawn_stack = 0; // used to know how many pawn we are stacking
+char robot_mode = SECURE_PAWN; // used to switch between the different phases
+char beacon_direction = BEACON_NORTH; // used to know where is the opponent
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -180,9 +213,20 @@ ISR(TIMER1_OVF_vect)
 
 
     // Compute sensors
-    int sensorValue = analogRead(PAWN_SENSOR);
-    front_distance = (front_distance + ((6787 / (sensorValue - 3)) - 4) * 2) / 3;
-
+    BEACON_get_direction();
+    
+    int sensorValue = 0;
+    
+    sensorValue = analogRead(PAWN_SENSOR);
+    front_distance_down_middle = (front_distance_down_middle + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    sensorValue = analogRead(PAWN_SENSOR_LEFT);
+    front_distance_down_left = (front_distance_down_left + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    sensorValue = analogRead(PAWN_SENSOR_RIGHT);
+    front_distance_down_right = (front_distance_down_right + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
+    front_distance_up_left = (front_distance_up_left + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
+    front_distance_up_right = (front_distance_up_right + ( convert_IR_value(sensorValue) ) * 2) / 3;
 
 
 }
@@ -235,9 +279,36 @@ void setup()
     PORTK = 0x00;
     DDRK = 0x00;
 */
-    pinMode(13, OUTPUT);
 
+    /**********************/
+    /* I/O INITIALIZATION */
+    /**********************/
+    // OUTPUTS
+    pinMode(13, OUTPUT);
+    pinMode(LIFT_MOTOR_PWM, OUTPUT);
+    analogWrite(LIFT_MOTOR_PWM, 0);
+    pinMode(LIFT_MOTOR_SENS, OUTPUT);
+
+    // INPUTS
     pinMode(INPUT_MOTION_PIN, INPUT);
+    pinMode(PAWN_SENSOR, INPUT);
+    pinMode(PAWN_SENSOR_LEFT, INPUT);
+    pinMode(PAWN_SENSOR_RIGHT, INPUT);
+    pinMode(OPPONENT_SENSOR_LEFT, INPUT);
+    pinMode(OPPONENT_SENSOR_RIGHT, INPUT);
+    pinMode(RIGHT_IR_SENSOR, INPUT);
+    pinMode(LEFT_IR_SENSOR, INPUT);
+    pinMode(LIFT_SWITCH_UP, INPUT);
+    pinMode(LIFT_SWITCH_DOWN, INPUT);
+    pinMode(BEACON_NORTH_PIN, INPUT);
+    pinMode(BEACON_SOUTH_PIN, INPUT);
+    pinMode(BEACON_EAST_PIN, INPUT);
+    pinMode(BEACON_WEST_PIN, INPUT);
+    pinMode(LEFT_REAR_SENSOR, INPUT);
+    pinMode(RIGHT_REAR_SENSOR, INPUT);
+
+
+
 
 
     // Initialize Timer interrupts
@@ -463,7 +534,17 @@ void loop()
 
 
 
-
+    switch(robot_mode) {
+      case SECURE_PAWN :
+      
+        break; 
+      case CREATE_TOWER :
+      
+        break;
+      case PLACING_PAWN :
+        
+        break;
+    }
 
 
     if ((global_time_counter > 20) && (digitalRead(INPUT_MOTION_PIN))) {        // If all commands are done, go to the next step
@@ -690,7 +771,7 @@ void init_PAWN_status(void)
     gripServo_right.attach(RIGHT_SERVO);
     gripServo_left.attach(LEFT_SERVO);
 
-    //PAWN_release_pawn();
+    // PAWN_go_down();
     PAWN_grip_pawn();
 	
 }
@@ -757,6 +838,11 @@ int move_pawn_to_xy(struct robot *my_robot, double *x1, double *y1)
     return sens;
 }
 
+int convert_IR_value(int value) 
+{
+ return (6787 / (value - 3)) - 4; 
+}
+
 /******************/
 /* A.I. Functions */
 /******************/
@@ -776,6 +862,11 @@ struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
 }
 
 void reinit_y_axis(void)
+{
+  
+}
+
+void compute_pawn_position(void) 
 {
   
 }
@@ -1186,4 +1277,23 @@ void PAWN_go_down(void)
         // Stop
         analogWrite(LIFT_MOTOR_PWM, 0);
 	
+}
+
+/************************************/
+/* COMMUNICATION WITH BEACON MODULE */
+/************************************/
+void BEACON_get_direction(void)
+{
+  if(BEACON_NORTH_PIN) {
+    beacon_direction = BEACON_NORTH;
+  }
+  else if(BEACON_SOUTH_PIN) {
+    beacon_direction = BEACON_SOUTH;
+  }
+  else if(BEACON_EAST_PIN) {
+    beacon_direction = BEACON_EAST;
+  }
+  else if(BEACON_WEST_PIN) {
+    beacon_direction = BEACON_WEST;
+  }
 }

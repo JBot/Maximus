@@ -1,7 +1,7 @@
 /*****************************************************
 Project : Maximus
-Version : 5.4
-Date : 03/03/2010
+Version : 5.5
+Date : 13/03/2010
 Author : JBot
 Company :
 Comments:
@@ -355,7 +355,8 @@ void setup()
 
     init_Command(&bot_command_delta);                      // Init robot command
     init_Command(&bot_command_alpha);                      // Init robot command
-
+    init_Command(&prev_bot_command_delta);
+    
     // Global enable interrupts
     sei();
 
@@ -715,10 +716,10 @@ void init_motors(void)
     alpha_motor.error_sum = 0;
     alpha_motor.kP = 350;                                  // 600
     alpha_motor.kI = 0;
-    alpha_motor.kD = 180;                                  // 200
-    alpha_motor.accel = 200;                               // 300
-    alpha_motor.decel = 1100;//1200;                              // 500
-    alpha_motor.max_speed = 7000;                          //8000
+    alpha_motor.kD = 160; //180                                  // 200
+    alpha_motor.accel = 350;//200;                               // 300
+    alpha_motor.decel = 1300;//1200;//1100;//1200;                              // 500
+    alpha_motor.max_speed = 9000;//7000;                          //8000
     alpha_motor.distance = 0.0;
 
     /* Delta motor initialization */
@@ -730,9 +731,9 @@ void init_motors(void)
     delta_motor.kP = 600;                                  // 600
     delta_motor.kI = 0;
     delta_motor.kD = 200;                                  // 100 * 1.09
-    delta_motor.accel = 400;//500;
-    delta_motor.decel = 1100;//1200;
-    delta_motor.max_speed = 25000;//35000;
+    delta_motor.accel = 600;//400;//500;
+    delta_motor.decel = 1800;//1350;//1100;//1200;
+    delta_motor.max_speed = 38000;//25000;//35000;
     delta_motor.distance = 0.0;
 }
 
@@ -895,7 +896,11 @@ write_RoboClaw_allcmd_M1M2(char addr, signed long accel, signed long speedM1, si
 /*******************************/
 void do_motion_control(void)
 {
-    // PID distance
+
+    // PID angle
+    alpha_motor.des_speed = compute_position_PID(&bot_command_alpha, &alpha_motor);
+
+  // PID distance
     if ((bot_command_alpha.state == WAITING_BEGIN) || (bot_command_alpha.state == PROCESSING_COMMAND)) {   // If alpha motor have not finished its movement 
 
     } else {
@@ -903,13 +908,11 @@ void do_motion_control(void)
             prev_bot_command_delta.state = PROCESSING_COMMAND;
             set_new_command(&bot_command_delta, prev_bot_command_delta.desired_distance);
         }
-    delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
+    //delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
 
     }
-    
+    delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
 
-    // PID angle
-    alpha_motor.des_speed = compute_position_PID(&bot_command_alpha, &alpha_motor);
     /*if (bot_command_alpha.state == WAITING_BEGIN) {
        bot_command_alpha.state = PROCESSING_COMMAND;
        } */
