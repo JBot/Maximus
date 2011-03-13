@@ -714,10 +714,10 @@ void init_motors(void)
     alpha_motor.cur_speed = 0;
     alpha_motor.last_error = 0;
     alpha_motor.error_sum = 0;
-    alpha_motor.kP = 350;                                  // 600
+    alpha_motor.kP = 230;//250//350                                  // 600
     alpha_motor.kI = 0;
-    alpha_motor.kD = 160; //180                                  // 200
-    alpha_motor.accel = 350;//200;                               // 300
+    alpha_motor.kD = 340;//300 //180                                  // 200
+    alpha_motor.accel = 300;//350//200;                               // 300
     alpha_motor.decel = 1300;//1200;//1100;//1200;                              // 500
     alpha_motor.max_speed = 9000;//7000;                          //8000
     alpha_motor.distance = 0.0;
@@ -1345,8 +1345,8 @@ void start_position_motion_control(void)
 void stop_robot(void)
 {
     set_new_command(&bot_command_alpha, 0);
-    set_new_command(&prev_bot_command_delta, 20);
-    set_new_command(&bot_command_delta, 20);
+    set_new_command(&prev_bot_command_delta, delta_motor.des_speed / 1000); // depends on current speed
+    set_new_command(&bot_command_delta, delta_motor.des_speed / 1000);
     //right_motor.des_speed = 0;
     //left_motor.des_speed = 0;
     //write_RoboClaw_speed_M1M2(128, 0, 0);

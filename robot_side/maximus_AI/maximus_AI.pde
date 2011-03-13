@@ -35,7 +35,7 @@ void delay_ms(uint16_t millis)
 #define TWOPI 			6.2831853070
 #define RAD2DEG 		57.29577951                /* radians to degrees conversion */
 
-#define DISTANCE_CENTER_PAWN    240.0                      // Distance between the center of the pawn and the center of the 2 wheels
+#define DISTANCE_CENTER_PAWN    220.0                      // Distance between the center of the pawn and the center of the 2 wheels
 #define DISTANCE_REAR_WHEELS    45                         // Distance between the rear of the robot and the center of the 2 wheels
 
 #define NO_PAWN                 0
@@ -47,8 +47,9 @@ void delay_ms(uint16_t millis)
 #define INPUT_MOTION_PIN        2
 #define RIGHT_SERVO             12
 #define LEFT_SERVO              11
+#define PAWN_SENSOR             25 // A DEFINIR // MICROSWITCH
 #define PAWN_SENSOR_LEFT        0 // A DEFINIR
-#define PAWN_SENSOR             1 // A DEFINIR
+#define PAWN_SENSOR_MIDDLE      1 // A DEFINIR
 #define PAWN_SENSOR_RIGHT       2 // A DEFINIR
 #define OPPONENT_SENSOR_LEFT    3 // A DEFINIR
 #define OPPONENT_SENSOR_RIGHT   4 // A DEFINIR
@@ -134,6 +135,8 @@ char turn_counter = 0;
 char pawn_stack = 0; // used to know how many pawn we are stacking
 char robot_mode = SECURE_PAWN; // used to switch between the different phases
 char beacon_direction = BEACON_NORTH; // used to know where is the opponent
+char ajusting_pawn = 0; // To know if we are trying to catch a pawn moving right and left to center it
+char go_grab_pawn = 0; 
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -217,18 +220,26 @@ ISR(TIMER1_OVF_vect)
     
     int sensorValue = 0;
     
-    sensorValue = analogRead(PAWN_SENSOR);
-    front_distance_down_middle = (front_distance_down_middle + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
+    front_distance_down_middle = (front_distance_down_middle + ( convert_longIR_value(sensorValue) ) * 2) / 3;
+    if( front_distance_down_middle > 3030)
+      front_distance_down_middle = 0;
     sensorValue = analogRead(PAWN_SENSOR_LEFT);
-    front_distance_down_left = (front_distance_down_left + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    front_distance_down_left = (front_distance_down_left + ( convert_longIR_value(sensorValue) ) * 2) / 3;
     sensorValue = analogRead(PAWN_SENSOR_RIGHT);
-    front_distance_down_right = (front_distance_down_right + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    front_distance_down_right = (front_distance_down_right + ( convert_longIR_value(sensorValue) ) * 2) / 3;
     sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
-    front_distance_up_left = (front_distance_up_left + ( convert_IR_value(sensorValue) ) * 2) / 3;
+    front_distance_up_left = (front_distance_up_left + ( convert_medIR_value(sensorValue) ) * 2) / 3;
     sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
-    front_distance_up_right = (front_distance_up_right + ( convert_IR_value(sensorValue) ) * 2) / 3;
-
-
+    front_distance_up_right = (front_distance_up_right + ( convert_medIR_value(sensorValue) ) * 2) / 3;
+/*
+    Serial.print("left : ");
+    Serial.print(front_distance_down_left);
+    Serial.print(" middle : ");
+    Serial.print(front_distance_down_middle);
+    Serial.print(" right : ");
+    Serial.println(front_distance_down_right);
+*/
 }
 
 
@@ -292,12 +303,6 @@ void setup()
     // INPUTS
     pinMode(INPUT_MOTION_PIN, INPUT);
     pinMode(PAWN_SENSOR, INPUT);
-    pinMode(PAWN_SENSOR_LEFT, INPUT);
-    pinMode(PAWN_SENSOR_RIGHT, INPUT);
-    pinMode(OPPONENT_SENSOR_LEFT, INPUT);
-    pinMode(OPPONENT_SENSOR_RIGHT, INPUT);
-    pinMode(RIGHT_IR_SENSOR, INPUT);
-    pinMode(LEFT_IR_SENSOR, INPUT);
     pinMode(LIFT_SWITCH_UP, INPUT);
     pinMode(LIFT_SWITCH_DOWN, INPUT);
     pinMode(BEACON_NORTH_PIN, INPUT);
@@ -307,8 +312,16 @@ void setup()
     pinMode(LEFT_REAR_SENSOR, INPUT);
     pinMode(RIGHT_REAR_SENSOR, INPUT);
 
-
-
+    /* Dont initialize the analog input
+    pinMode(PAWN_SENSOR_LEFT, INPUT);
+    pinMode(PAWN_SENSOR_MIDDLE, INPUT);
+    pinMode(PAWN_SENSOR_RIGHT, INPUT);
+    pinMode(OPPONENT_SENSOR_LEFT, INPUT);
+    pinMode(OPPONENT_SENSOR_RIGHT, INPUT);
+    pinMode(RIGHT_IR_SENSOR, INPUT);
+    pinMode(LEFT_IR_SENSOR, INPUT);
+    */
+    
 
 
     // Initialize Timer interrupts
@@ -407,6 +420,77 @@ void setup()
     digitalWrite(13, HIGH);
     delay_ms(300);
 
+
+    /* JUST FOR TEST */
+    delay_ms(1000);
+    
+    
+    Serial1.print('Z');
+    Serial1.print(0);
+    Serial1.print(0);
+    Serial1.print(0);
+    Serial1.print(0);
+    Serial1.print(0);
+    Serial1.print(0);
+
+
+    // WAIT START COMMAND
+	
+    PAWN_release_pawn();
+    MOTION_set_maxspeed_alpha(5000);
+    delay_ms(30);
+    
+    while(1) {
+    struct Point my_test_point;
+      // Attrapper un pion
+      if(front_distance_down_right < 40) {
+       // tourner sur la droite 
+       MOTION_set_alpha(-10);
+       ajusting_pawn = 1;
+      } else if(front_distance_down_left < 40) {
+       // tourner sur la gauche 
+       MOTION_set_alpha(10);
+       ajusting_pawn = 1;
+      } else if( ajusting_pawn == 1){
+        MOTION_set_alpha(0);
+        //MOTION_stop_robot();
+        go_grab_pawn = 1;
+        ajusting_pawn = 0;
+      }
+      
+      if(go_grab_pawn == 1) {
+        
+        if(front_distance_down_middle < 2) {
+          MOTION_stop_robot();
+          go_grab_pawn = 0;
+          PAWN_grip_pawn();
+          delay_ms(3000);
+          PAWN_release_pawn();
+          delay_ms(3000);
+        }
+        else {
+
+          my_test_point = compute_pawn_position(&maximus, 210 + front_distance_down_middle * 10);
+          Serial.print("X = ");
+          Serial.print(my_test_point.x);
+          Serial.print(" Y = ");
+          Serial.print(my_test_point.y);
+      
+          if( check_point_in_map(&my_test_point) != 0) {
+             Serial.println("Point in the map");
+             MOTION_set_delta(front_distance_down_middle * 10); 
+          }
+      
+        }      
+      }
+      
+      
+      delay_ms(30);
+    }
+    /* JUST FOR TEST */
+
+
+
     delay_ms(1000);
     Serial3.print('C');
     delay_ms(10);
@@ -433,7 +517,6 @@ void setup()
 
     // WAIT START COMMAND
 	
-
     PAWN_release_pawn();
 
 }
@@ -441,7 +524,7 @@ void setup()
 void loop()
 {
 
-    delay_ms(50);
+    delay_ms(30);
 
     global_time_counter++;
 
@@ -453,7 +536,7 @@ void loop()
        } */
 
         /* Display for ROS */
-        entier = (unsigned int) fabs(maximus.pos_X * 10);
+/*        entier = (unsigned int) fabs(maximus.pos_X * 10);
         display6 = (entier % 10) + 48;
         entier = (unsigned int) (entier / 10);
         display5 = (entier % 10) + 48;
@@ -530,7 +613,7 @@ void loop()
     //Serial.println(way_point_index);
     Serial.print('\n');
     Serial.print('\r');
-
+*/
 
 
 
@@ -838,9 +921,35 @@ int move_pawn_to_xy(struct robot *my_robot, double *x1, double *y1)
     return sens;
 }
 
-int convert_IR_value(int value) 
+int convert_longIR_value(int value) 
 {
- return (6787 / (value - 3)) - 4; 
+  return 65 * pow((value * 0.0048828125), -1.10);
+}
+
+int convert_medIR_value(int value) 
+{
+  return (6787 / (value - 3)) - 4; 
+}
+
+struct Point compute_pawn_position(struct robot *my_robot, int distance) 
+{
+  struct Point result;
+
+  result.x = my_robot->pos_X + distance * cos(my_robot->theta);
+  result.y = my_robot->pos_Y + distance * sin(my_robot->theta);
+
+  return result;
+}
+
+char check_point_in_map(struct Point *my_point)
+{
+  char error = 0; // Outside the map
+  if( (my_point->x > 1480) || (my_point->x < -1480) || (my_point->y > 2020) || (my_point->y < 80) )
+    error = 0;
+  else 
+    error = 1;
+  
+  return error; 
 }
 
 /******************/
@@ -866,10 +975,7 @@ void reinit_y_axis(void)
   
 }
 
-void compute_pawn_position(void) 
-{
-  
-}
+
 
 
 /*************************************/
@@ -1222,6 +1328,32 @@ void MOTION_set_alpha(double alpha)
 
 }
 
+void MOTION_set_maxspeed_alpha(int my_speed)
+{
+    Serial1.print('m');
+
+    entier = (unsigned int) my_speed;
+    display6 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display5 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display4 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display3 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display2 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display1 = (entier % 10) + 48;
+
+    Serial1.print(display1);
+    Serial1.print(display2);
+    Serial1.print(display3);
+    Serial1.print(display4);
+    Serial1.print(display5);
+    Serial1.print(display6);
+
+}
+
 
 /*********************************/
 /* COMMUNICATION WITH GUI MODULE */
@@ -1235,14 +1367,14 @@ void MOTION_set_alpha(double alpha)
 /**********************************/
 void PAWN_grip_pawn(void)
 {
-    gripServo_right.write(90);
-    gripServo_left.write(90);
+    gripServo_right.write(50);
+    gripServo_left.write(140);
 }
 
 void PAWN_release_pawn(void)
 {
-    gripServo_right.write(170);
-    gripServo_left.write(10);
+    gripServo_right.write(91);
+    gripServo_left.write(100);
 }
 
 void PAWN_go_up(void)
