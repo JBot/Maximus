@@ -42,6 +42,8 @@ void delay_ms(uint16_t millis)
 #define TAKE_PAWN               1
 #define GOTO_RELEASE            2
 #define GO_BACK                 3
+#define GRABBING                4
+#define TURNING_DIRECTION       5
 
 // I/Os definition
 #define INPUT_MOTION_PIN        2
@@ -56,9 +58,9 @@ void delay_ms(uint16_t millis)
 #define RIGHT_IR_SENSOR         10 // A DEFINIR
 #define LEFT_IR_SENSOR          11 // A DEFINIR
 #define LIFT_MOTOR_PWM		40 // A DEFINIR
-#define LIFT_MOTOR_SENS		16 // A DEFINIR
-#define LIFT_SWITCH_UP          20
-#define LIFT_SWITCH_DOWN        21
+#define LIFT_MOTOR_SENS		41 // A DEFINIR
+#define LIFT_SWITCH_UP          22
+#define LIFT_SWITCH_DOWN        23
 #define BEACON_NORTH_PIN	45 // A DEFINIR
 #define BEACON_SOUTH_PIN	46 // A DEFINIR
 #define BEACON_EAST_PIN	        47 // A DEFINIR
@@ -109,6 +111,8 @@ char display1, display2, display3, display4, display5, display6, display7;
 Servo gripServo_right;
 Servo gripServo_left;
 
+Servo lifter_servo;
+
 // IR sensors
 int front_distance_down_left = 50;
 int front_distance_down_middle = 50;
@@ -129,6 +133,9 @@ struct Point *my_color_points;
 struct Point way_points[20];
 int way_point_index = 0;
 
+struct Point release_point;
+struct Point my_test_point;
+
 char start_MOTION = 0;
 char turn_counter = 0;
 
@@ -137,6 +144,7 @@ char robot_mode = SECURE_PAWN; // used to switch between the different phases
 char beacon_direction = BEACON_NORTH; // used to know where is the opponent
 char ajusting_pawn = 0; // To know if we are trying to catch a pawn moving right and left to center it
 char go_grab_pawn = 0; 
+char nb_check = 0;
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -222,7 +230,7 @@ ISR(TIMER1_OVF_vect)
     
     sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
     front_distance_down_middle = (front_distance_down_middle + ( convert_longIR_value(sensorValue) ) * 2) / 3;
-    if( front_distance_down_middle > 3030)
+    if( front_distance_down_middle > 430)
       front_distance_down_middle = 0;
     sensorValue = analogRead(PAWN_SENSOR_LEFT);
     front_distance_down_left = (front_distance_down_left + ( convert_longIR_value(sensorValue) ) * 2) / 3;
@@ -239,6 +247,10 @@ ISR(TIMER1_OVF_vect)
     Serial.print(front_distance_down_middle);
     Serial.print(" right : ");
     Serial.println(front_distance_down_right);
+*/
+/*
+Serial.print(digitalRead(LIFT_SWITCH_DOWN));
+Serial.println(digitalRead(LIFT_SWITCH_UP));
 */
 }
 
@@ -413,6 +425,8 @@ void setup()
     // Global enable interrupts
     sei();
 
+    
+    
     digitalWrite(13, HIGH);
     delay_ms(300);
     digitalWrite(13, LOW);
@@ -420,9 +434,10 @@ void setup()
     digitalWrite(13, HIGH);
     delay_ms(300);
 
+    //PAWN_go_down();
 
     /* JUST FOR TEST */
-    delay_ms(1000);
+/*    delay_ms(1000);
     
     
     Serial1.print('Z');
@@ -443,11 +458,11 @@ void setup()
     while(1) {
     struct Point my_test_point;
       // Attrapper un pion
-      if(front_distance_down_right < 40) {
+      if(front_distance_down_right < 30) {
        // tourner sur la droite 
        MOTION_set_alpha(-10);
        ajusting_pawn = 1;
-      } else if(front_distance_down_left < 40) {
+      } else if(front_distance_down_left < 30) {
        // tourner sur la gauche 
        MOTION_set_alpha(10);
        ajusting_pawn = 1;
@@ -458,9 +473,9 @@ void setup()
         ajusting_pawn = 0;
       }
       
-      if(go_grab_pawn == 1) {
+      if(go_grab_pawn >= 1) {
         
-        if(front_distance_down_middle < 2) {
+        if( (front_distance_down_middle < 2) ) { //|| (digitalRead(INPUT_MOTION_PIN) && (go_grab_pawn == 2)) ) {
           MOTION_stop_robot();
           go_grab_pawn = 0;
           PAWN_grip_pawn();
@@ -476,9 +491,11 @@ void setup()
           Serial.print(" Y = ");
           Serial.print(my_test_point.y);
       
-          if( check_point_in_map(&my_test_point) != 0) {
+          if( (check_point_in_map(&my_test_point) != 0) && (go_grab_pawn == 1) ) {
              Serial.println("Point in the map");
-             MOTION_set_delta(front_distance_down_middle * 10); 
+             MOTION_set_maxspeed_delta(25000);
+             MOTION_set_delta((front_distance_down_middle - 0) * 10); 
+             go_grab_pawn = 2;
           }
       
         }      
@@ -487,6 +504,7 @@ void setup()
       
       delay_ms(30);
     }
+  */
     /* JUST FOR TEST */
 
 
@@ -518,6 +536,7 @@ void setup()
     // WAIT START COMMAND
 	
     PAWN_release_pawn();
+    delay_ms(100);
 
 }
 
@@ -616,7 +635,7 @@ void loop()
 */
 
 
-
+/*
     switch(robot_mode) {
       case SECURE_PAWN :
       
@@ -628,17 +647,133 @@ void loop()
         
         break;
     }
+*/
+
+//    Serial.print("has pawn = ");
+//    Serial.println(((int)has_pawn));
+    
+
+    if( ( (front_distance_down_right < 30) || ((front_distance_down_middle < 35) && (front_distance_down_middle > 5)) || (front_distance_down_left < 30) ) && (has_pawn == NO_PAWN) ) {
+      // TODO : S'assurer que ce que l'on voit n'est pas un mur
+      my_test_point = compute_pawn_position(&maximus, 210 + front_distance_down_middle * 10);
+      if( (check_point_in_map(&my_test_point) != 0) ) {
+        
+      
+      // TODO : Vérifier que ce n'est pas un pion qui est sur une case de notre couleur      
+      if(nb_check == 2) {
+      
+      MOTION_stop_robot();
+      MOTION_set_maxspeed_delta(25000);
+      MOTION_set_maxspeed_alpha(6000);
+      has_pawn = GRABBING;
+      ajusting_pawn = 1;
+      
+    Serial.print("left : ");
+    Serial.print(front_distance_down_left);
+    Serial.print(" middle : ");
+    Serial.print(front_distance_down_middle);
+    Serial.print(" right : ");
+    Serial.println(front_distance_down_right);
+
+      nb_check = 0;
+      }
+      else {
+        nb_check++;
+      }
+
+      }
+      else {
+        Serial.println("Point NOT in the map");
+        if(front_distance_down_middle < 20) {
+          MOTION_stop_robot();
+        }
+      }    
+    }
+    else {
+      nb_check = 0;
+    }
+
+
+    if(has_pawn == GRABBING) {
+      if(front_distance_down_right < 33) {
+             // tourner sur la droite 
+             MOTION_set_alpha(-10);
+             ajusting_pawn = 1;
+            } else if(front_distance_down_left < 33) {
+             // tourner sur la gauche 
+             MOTION_set_alpha(10);
+             ajusting_pawn = 1;
+            } else if( ajusting_pawn == 1){
+              MOTION_set_alpha(0);
+              //MOTION_stop_robot();
+              go_grab_pawn = 1;
+              ajusting_pawn = 0;
+            }
+            
+    }
 
 
     if ((global_time_counter > 20) && (digitalRead(INPUT_MOTION_PIN))) {        // If all commands are done, go to the next step
         global_time_counter = 21;
-        struct Point release_point;
+        
         double x_topawn;
         double y_topawn;
         int sens;
 
-        /*switch (has_pawn) {
-        case TAKE_PAWN:                                   // The robot just take a pawn to put in his color
+        switch (has_pawn) {
+          case GRABBING:
+            
+            // Attrapper un pion
+            if(front_distance_down_right < 33) {
+             // tourner sur la droite 
+             MOTION_set_alpha(-10);
+             ajusting_pawn = 1;
+            } else if(front_distance_down_left < 33) {
+             // tourner sur la gauche 
+             MOTION_set_alpha(10);
+             ajusting_pawn = 1;
+            } else if( ajusting_pawn == 1){
+              MOTION_set_alpha(0);
+              //MOTION_stop_robot();
+              go_grab_pawn = 1;
+              ajusting_pawn = 0;
+            }
+      
+            if(go_grab_pawn >= 1) {
+        
+              if( (front_distance_down_middle < 2) ) { //|| (digitalRead(INPUT_MOTION_PIN) && (go_grab_pawn == 2)) ) {
+                MOTION_stop_robot();
+                go_grab_pawn = 0;
+                PAWN_go_down();
+                PAWN_grip_pawn();
+                //PAWN_go_up();
+                //delay_ms(1000);
+                has_pawn = TAKE_PAWN;
+                //PAWN_release_pawn();
+                //delay_ms(3000);
+              }
+              else {
+                if((front_distance_down_middle < 50)) {
+                my_test_point = compute_pawn_position(&maximus, 210 + front_distance_down_middle * 10);
+                /*Serial.print("X = ");
+                Serial.print(my_test_point.x);
+                Serial.print(" Y = ");
+                Serial.print(my_test_point.y);
+                */
+                if( (check_point_in_map(&my_test_point) != 0) && (go_grab_pawn == 1) ) {
+                   Serial.println("Point in the map");
+                   //MOTION_set_maxspeed_delta(25000);
+                   MOTION_set_delta((front_distance_down_middle + 2) * 10); 
+                   go_grab_pawn = 2;
+                }
+                else {
+                  Serial.println("Point NOT in the map");
+                }
+                }
+              }      
+            }
+            break;
+          case TAKE_PAWN:                                   // The robot just take a pawn to put in his color
             release_point = find_nearest(&maximus, my_color_points, 18);
             x_topawn = release_point.x;
             y_topawn = release_point.y;
@@ -649,30 +784,70 @@ void loop()
             } else {                                       // Back
                 MOTION_goto_xy_back(x_topawn, y_topawn);
             }
-
+            delay_ms(100);
             has_pawn = GOTO_RELEASE;
             break;
 
         case GOTO_RELEASE:                                // The robot have a pawn and is on his release point
-            release_pawn();
-            //set_new_command(&bot_command_delta, -180);
+            PAWN_release_pawn();
+            PAWN_go_up();
+            MOTION_set_maxspeed_delta(35000);
+            MOTION_set_maxspeed_alpha(9000);
+            //MOTION_set_delta(-180);
+            MOTION_set_delta(-250);
+            delay_ms(100);
             has_pawn = GO_BACK;
             break;
 
         case GO_BACK:                                     // The robot release the pawn and go back to let it in position
-            MOTION_goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
-            has_pawn = NO_PAWN;
-            break;
-*/
-        //default:                                          // has no pawn => Move to the next position
-            if(turn_counter < 3) {
-            if (way_point_index >= 5) {
-                way_point_index = 1;
-                turn_counter++;
+            //MOTION_goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+            //MOTION_set_alpha(angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG);
+            //delay_ms(300);
+            struct Point the_point;
+            the_point.x = maximus.pos_X;
+            the_point.y = maximus.pos_Y;
+            
+            if(trajectory_intersection_pawn(&the_point, &way_points[way_point_index - 1], &release_point, 100+140) == 1) { // pawn is in the trajectory
+              // Compute an intermediate way_point
+              Serial.println("In trajectory");
+              has_pawn = TURNING_DIRECTION;
+            }
+            else {
+              Serial.println("Not in trajectory");
+              MOTION_set_alpha(angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG);
+              Serial.print("Turning : ");
+              Serial.println(angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG);
+              Serial.println(maximus.theta* RAD2DEG);
+              has_pawn = TURNING_DIRECTION;
+              delay_ms(1000);
             }
             
-            MOTION_goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
-            way_point_index++;
+            //has_pawn = TURNING_DIRECTION;
+            break;
+        case TURNING_DIRECTION:
+            // Look if we see the pawn we just put in place
+            MOTION_goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+            Serial.println(maximus.theta* RAD2DEG);
+            Serial.print("!END Turning! ");
+            Serial.print("Go to :");
+            Serial.print(way_points[way_point_index - 1].x);
+            Serial.print(" ");
+            Serial.println(way_points[way_point_index - 1].y);
+            has_pawn = NO_PAWN;
+            break;        
+        default:                                          // has no pawn => Move to the next position
+            if(turn_counter < 3) {
+              if (way_point_index >= 6) {
+                way_point_index = 2;
+                turn_counter++;
+              }
+            
+              MOTION_goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+              Serial.print("Go to :");
+              Serial.print(way_points[way_point_index].x);
+              Serial.print(" ");
+              Serial.println(way_points[way_point_index].y);
+              way_point_index++;
             }
             else {
               if (turn_counter == 3) {
@@ -680,10 +855,12 @@ void loop()
                 turn_counter++;
               }
             }
+            delay_ms(100);
             //Serial.println('X');
-          //  break;
-        //}
+            break;
+        }
 
+    delay_ms(100);
     }
 
 
@@ -823,17 +1000,19 @@ void init_way_points(void)
     way_points[1].x = -700;
     way_points[1].y = 350;
     way_points[2].x = -700;
-    way_points[2].y = 1600;
+    way_points[2].y = 700;
+    way_points[3].x = -700;
+    way_points[3].y = 1600;
 
-    way_points[3].x = -350;
-    way_points[3].y = 1600;//1400;
     way_points[4].x = -350;
-    way_points[4].y = 350;
-    way_points[5].x = -700;
-    way_points[5].y = 350;
-
+    way_points[4].y = 1600;//1400;
+    way_points[5].x = -350;
+    way_points[5].y = 700;
     way_points[6].x = -700;
     way_points[6].y = 350;
+
+    way_points[7].x = -700;
+    way_points[7].y = 350;
     way_points[7].x = -700;
     way_points[7].y = 350;
     way_points[8].x = -700;
@@ -845,7 +1024,7 @@ void init_way_points(void)
 
 void init_PAWN_status(void)
 {
-    pinMode(LIFT_MOTOR_PWM, OUTPUT);
+    //pinMode(LIFT_MOTOR_PWM, OUTPUT);
     pinMode(LIFT_MOTOR_SENS, OUTPUT);
 
     pinMode(LIFT_SWITCH_UP, INPUT);
@@ -853,8 +1032,12 @@ void init_PAWN_status(void)
     
     gripServo_right.attach(RIGHT_SERVO);
     gripServo_left.attach(LEFT_SERVO);
-
+    
+    lifter_servo.attach(LIFT_MOTOR_PWM);
+    lifter_servo.write(90);
+    
     // PAWN_go_down();
+    PAWN_go_up();
     PAWN_grip_pawn();
 	
 }
@@ -921,6 +1104,39 @@ int move_pawn_to_xy(struct robot *my_robot, double *x1, double *y1)
     return sens;
 }
 
+// Compute the angle to do to go to (x, y)
+double angle_coord(struct robot *my_robot, double x1, double y1)
+{
+    double angletodo = 0;
+    if ((x1 < my_robot->pos_X) && (y1 < my_robot->pos_Y)) {
+        angletodo = -PI / 2 - atan(fabs((x1 - my_robot->pos_X) / (y1 - my_robot->pos_Y)));
+    } else if ((x1 > my_robot->pos_X) && (y1 < my_robot->pos_Y)) {
+        angletodo = -atan(fabs((y1 - my_robot->pos_Y) / (x1 - my_robot->pos_X)));
+    } else if ((x1 > my_robot->pos_X) && (y1 > my_robot->pos_Y)) {
+        angletodo = atan(fabs((y1 - my_robot->pos_Y) / (x1 - my_robot->pos_X)));
+    } else if ((x1 < my_robot->pos_X) && (y1 > my_robot->pos_Y)) {
+        angletodo = PI / 2 + atan(fabs((x1 - my_robot->pos_X) / (y1 - my_robot->pos_Y)));
+    } else if ((x1 < my_robot->pos_X) && (y1 == my_robot->pos_Y)) {     // 
+        angletodo = -PI;
+    } else if ((x1 > my_robot->pos_X) && (y1 == my_robot->pos_Y)) {     // 
+        angletodo = 0;
+    } else if ((x1 == my_robot->pos_X) && (y1 < my_robot->pos_Y)) {     // 
+        angletodo = -PI / 2;
+    } else if ((x1 == my_robot->pos_X) && (y1 > my_robot->pos_Y)) {     // 
+        angletodo = PI / 2;
+    } else
+        angletodo = 0;
+
+    angletodo = angletodo - my_robot->theta;
+
+    if (angletodo > PI)
+        angletodo = angletodo - 2 * PI;
+    if (angletodo < -PI)
+        angletodo = 2 * PI + angletodo;
+
+    return angletodo;
+}
+
 int convert_longIR_value(int value) 
 {
   return 65 * pow((value * 0.0048828125), -1.10);
@@ -944,13 +1160,49 @@ struct Point compute_pawn_position(struct robot *my_robot, int distance)
 char check_point_in_map(struct Point *my_point)
 {
   char error = 0; // Outside the map
-  if( (my_point->x > 1480) || (my_point->x < -1480) || (my_point->y > 2020) || (my_point->y < 80) )
+  if( (my_point->x > 1420) || (my_point->x < -1420) || (my_point->y > 2020) || (my_point->y < 80) )
     error = 0;
   else 
     error = 1;
   
   return error; 
 }
+
+/* Return 1 if the trajectory and the pawn have an intersection, else 0 */
+int trajectory_intersection_pawn(struct Point *start, struct Point *end, struct Point *center, int radius)
+{
+  int result = 0;  
+  double delta = 0;
+/*  
+  Serial.print("s_x : ");
+  Serial.print(start->x);
+  Serial.print("s_y : ");
+  Serial.println(start->y);
+  Serial.print("e_x : ");
+  Serial.print(end->x);
+  Serial.print("e_y : ");
+  Serial.println(end->y);
+  Serial.print("c_x : ");
+  Serial.print(center->x);
+  Serial.print("c_y : ");
+  Serial.println(center->y);
+  Serial.print("radius : ");
+  Serial.println(radius);
+*/
+  double a = (end->x-start->x)*(end->x-start->x) + (end->y-start->y)*(end->y-start->y);
+  double b = 2 * ( (end->x-start->x)*(start->x-center->x) + (end->y-start->y)*(start->y-center->y) );
+  double c = (start->x-center->x)*(start->x-center->x) + (start->y-center->y)*(start->y-center->y) - radius*radius;
+
+  delta = b * b - 4 * a * c;
+  /*
+  delta = pow(2*( (end->x-start->x)*(start->x-center->x) + (end->y-start->y)*(start->y-center->y) ),2) - 4*(pow(end->x-start->x, 2) + pow(end->y-start->y, 2))*(pow((start->x-center->x), 2)+pow((start->y-center->y),2)-pow(radius,2));
+  */
+  if( delta >= 0)
+    result = 1;
+  Serial.println(delta);
+  return result;  
+}
+
 
 /******************/
 /* A.I. Functions */
@@ -1354,6 +1606,31 @@ void MOTION_set_maxspeed_alpha(int my_speed)
 
 }
 
+void MOTION_set_maxspeed_delta(int my_speed)
+{
+    Serial1.print('M');
+
+    entier = (unsigned int) my_speed;
+    display6 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display5 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display4 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display3 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display2 = (entier % 10) + 48;
+    entier = (unsigned int) (entier / 10);
+    display1 = (entier % 10) + 48;
+
+    Serial1.print(display1);
+    Serial1.print(display2);
+    Serial1.print(display3);
+    Serial1.print(display4);
+    Serial1.print(display5);
+    Serial1.print(display6);
+
+}
 
 /*********************************/
 /* COMMUNICATION WITH GUI MODULE */
@@ -1367,30 +1644,34 @@ void MOTION_set_maxspeed_alpha(int my_speed)
 /**********************************/
 void PAWN_grip_pawn(void)
 {
-    gripServo_right.write(50);
-    gripServo_left.write(140);
+    gripServo_right.write(60);
+    gripServo_left.write(130);
 }
 
 void PAWN_release_pawn(void)
 {
-    gripServo_right.write(91);
-    gripServo_left.write(100);
+    //gripServo_right.write(91);
+    //gripServo_left.write(100);
+    gripServo_right.write(111);
+    gripServo_left.write(80);
 }
 
 void PAWN_go_up(void)
 {
         int buttonState = 0;
 	// Start going up
-	digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_UP);
-	analogWrite(LIFT_MOTOR_PWM, 75);
-	// Stop when the microswitch in activated
+	//digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_UP);
+	//analogWrite(LIFT_MOTOR_PWM, 100);
+	lifter_servo.write(118);
+        // Stop when the microswitch in activated
 	buttonState = digitalRead(LIFT_SWITCH_UP);
         while(buttonState == 1) {
-          delay_ms(20);
+          delay_ms(15);
           buttonState = digitalRead(LIFT_SWITCH_UP);
 	}
         // Stop
-        analogWrite(LIFT_MOTOR_PWM, 0);
+        lifter_servo.write(90);
+        //analogWrite(LIFT_MOTOR_PWM, 0);
 	
 }
 
@@ -1398,16 +1679,18 @@ void PAWN_go_down(void)
 {
         int buttonState = 0;
 	// Start going up
-	digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_DOWN);
-	analogWrite(LIFT_MOTOR_PWM, 100);
+	//digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_DOWN);
+	//analogWrite(LIFT_MOTOR_PWM, 100);
+        lifter_servo.write(58);
 	// Stop when the microswitch in activated
 	buttonState = digitalRead(LIFT_SWITCH_DOWN);
         while(buttonState == 1) {
-          delay_ms(20);
+          delay_ms(15);
           buttonState = digitalRead(LIFT_SWITCH_DOWN);
 	}
         // Stop
-        analogWrite(LIFT_MOTOR_PWM, 0);
+        lifter_servo.write(90);
+        //analogWrite(LIFT_MOTOR_PWM, 0);
 	
 }
 

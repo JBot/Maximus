@@ -1345,8 +1345,8 @@ void start_position_motion_control(void)
 void stop_robot(void)
 {
     set_new_command(&bot_command_alpha, 0);
-    set_new_command(&prev_bot_command_delta, delta_motor.des_speed / 1000); // depends on current speed
-    set_new_command(&bot_command_delta, delta_motor.des_speed / 1000);
+    set_new_command(&prev_bot_command_delta, delta_motor.des_speed / 800); // depends on current speed
+    set_new_command(&bot_command_delta, delta_motor.des_speed / 800);
     //right_motor.des_speed = 0;
     //left_motor.des_speed = 0;
     //write_RoboClaw_speed_M1M2(128, 0, 0);
