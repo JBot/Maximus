@@ -741,12 +741,22 @@ void loop()
 					if( (front_distance_down_middle < 2) ) { //|| (digitalRead(INPUT_MOTION_PIN) && (go_grab_pawn == 2)) ) {
 						stop_robot();
 						go_grab_pawn = 0;
-						PAWN_go_down();
+						PAWN_release_pawn();
+                                                PAWN_go_down();
 						PAWN_grip_pawn();
 						//PAWN_go_up();
 						//delay_ms(1000);
-						has_pawn = TAKE_PAWN;
-						//PAWN_release_pawn();
+						if(pawn_stack == 0) { // Stacking pawn
+                                                  PAWN_go_up();
+                                                  pawn_stack = 1;
+                                                  delta_motor.max_speed = DELTA_MAX_SPEED;
+					          alpha_motor.max_speed = ALPHA_MAX_SPEED;
+                                                  has_pawn = TURNING_DIRECTION;
+                                                }
+                                                else { // Go put the pawn on the right space
+                                                  has_pawn = TAKE_PAWN;
+						}
+                                                //PAWN_release_pawn();
 						//delay_ms(3000);
 					}
 					else {
@@ -791,6 +801,7 @@ void loop()
 					case GOTO_RELEASE:                                // The robot have a pawn and is on his release point
 					PAWN_release_pawn();
 					PAWN_go_up();
+                                        pawn_stack = 0;
 					
 					//MOTION_set_delta(-180);
 					set_new_command(&bot_command_delta, (-200));
