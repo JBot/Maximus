@@ -35,9 +35,9 @@ void delay_ms(uint16_t millis)
 /***********/
 /* Defines */
 /***********/
-#define TICK_PER_MM_LEFT 	9.2628378129  // 90.9456817668
-#define TICK_PER_MM_RIGHT 	9.2628378129  // 90.9456817668
-#define DIAMETER 		272.0 //275.0 // 166.0         // Distance between the 2 wheels
+#define TICK_PER_MM_LEFT 	9.2628378129               // 90.9456817668
+#define TICK_PER_MM_RIGHT 	9.2628378129               // 90.9456817668
+#define DIAMETER 		272.0                      //275.0 // 166.0         // Distance between the 2 wheels
 
 #define TWOPI 			6.2831853070
 #define RAD2DEG 		57.2958                    /* radians to degrees conversion */
@@ -357,7 +357,7 @@ void setup()
     init_Command(&bot_command_delta);                      // Init robot command
     init_Command(&bot_command_alpha);                      // Init robot command
     init_Command(&prev_bot_command_delta);
-    
+
     // Global enable interrupts
     sei();
 
@@ -407,7 +407,7 @@ void loop()
         if (maximus.pos_X < 0)
             Serial.print('-');
         else
-          Serial.print('+');
+            Serial.print('+');
         Serial.print(display1);
         Serial.print(display2);
         Serial.print(display3);
@@ -443,7 +443,7 @@ void loop()
         if (maximus.pos_Y < 0)
             Serial.print('-');
         else
-          Serial.print('+');
+            Serial.print('+');
         Serial.print(display1);
         Serial.print(display2);
         Serial.print(display3);
@@ -481,7 +481,7 @@ void loop()
         if (maximus.theta < 0)
             Serial.print('-');
         else
-          Serial.print('+');
+            Serial.print('+');
         Serial.print(display1);
         Serial.print(display2);
         Serial.print(display3);
@@ -535,12 +535,11 @@ void loop()
     }
 
 
-    if((bot_command_alpha.state == COMMAND_DONE) && (bot_command_delta.state == COMMAND_DONE)) {
-         digitalWrite(13, HIGH);
- 
-    }
-    else {
-          digitalWrite(13, LOW);
+    if ((bot_command_alpha.state == COMMAND_DONE) && (bot_command_delta.state == COMMAND_DONE)) {
+        digitalWrite(13, HIGH);
+
+    } else {
+        digitalWrite(13, LOW);
 
     }
 
@@ -652,7 +651,7 @@ void init_Robot(struct robot *my_robot)
 
 void init_blue_Robot(struct robot *my_robot)
 {
-    my_robot->pos_X = -1455;//-1459;                               // -700         
+    my_robot->pos_X = -1455;                               //-1459;                               // -700         
     my_robot->pos_Y = 192;                                 // 700          
     my_robot->theta = 0;                                   // PI/2
     my_robot->yaw = 0.0;
@@ -715,12 +714,12 @@ void init_motors(void)
     alpha_motor.cur_speed = 0;
     alpha_motor.last_error = 0;
     alpha_motor.error_sum = 0;
-    alpha_motor.kP = 230;//250//350                                  // 600
+    alpha_motor.kP = 230;                                  //250//350                                  // 600
     alpha_motor.kI = 0;
-    alpha_motor.kD = 340;//300 //180                                  // 200
-    alpha_motor.accel = 300;//350//200;                               // 300
-    alpha_motor.decel = 1300;//1200;//1100;//1200;                              // 500
-    alpha_motor.max_speed = 9000;//7000;                          //8000
+    alpha_motor.kD = 340;                                  //300 //180                                  // 200
+    alpha_motor.accel = 300;                               //350//200;                               // 300
+    alpha_motor.decel = 1300;                              //1200;//1100;//1200;                              // 500
+    alpha_motor.max_speed = 9000;                          //7000;                          //8000
     alpha_motor.distance = 0.0;
 
     /* Delta motor initialization */
@@ -732,9 +731,9 @@ void init_motors(void)
     delta_motor.kP = 600;                                  // 600
     delta_motor.kI = 0;
     delta_motor.kD = 200;                                  // 100 * 1.09
-    delta_motor.accel = 600;//400;//500;
-    delta_motor.decel = 1800;//1350;//1100;//1200;
-    delta_motor.max_speed = 38000;//25000;//35000;
+    delta_motor.accel = 600;                               //400;//500;
+    delta_motor.decel = 1800;                              //1350;//1100;//1200;
+    delta_motor.max_speed = 38000;                         //25000;//35000;
     delta_motor.distance = 0.0;
 }
 
@@ -901,15 +900,15 @@ void do_motion_control(void)
     // PID angle
     alpha_motor.des_speed = compute_position_PID(&bot_command_alpha, &alpha_motor);
 
-  // PID distance
-    if ((bot_command_alpha.state == WAITING_BEGIN) || (bot_command_alpha.state == PROCESSING_COMMAND)) {   // If alpha motor have not finished its movement 
+    // PID distance
+    if ((bot_command_alpha.state == WAITING_BEGIN) || (bot_command_alpha.state == PROCESSING_COMMAND)) {        // If alpha motor have not finished its movement 
 
     } else {
         if ((bot_command_delta.state != PROCESSING_COMMAND) && (prev_bot_command_delta.state == WAITING_BEGIN)) {
             prev_bot_command_delta.state = PROCESSING_COMMAND;
             set_new_command(&bot_command_delta, prev_bot_command_delta.desired_distance);
         }
-    //delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
+        //delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
 
     }
     delta_motor.des_speed = compute_position_PID(&bot_command_delta, &delta_motor);
@@ -1346,7 +1345,7 @@ void start_position_motion_control(void)
 void stop_robot(void)
 {
     set_new_command(&bot_command_alpha, 0);
-    set_new_command(&prev_bot_command_delta, delta_motor.des_speed / 800); // depends on current speed
+    set_new_command(&prev_bot_command_delta, delta_motor.des_speed / 800);      // depends on current speed
     set_new_command(&bot_command_delta, delta_motor.des_speed / 800);
     //right_motor.des_speed = 0;
     //left_motor.des_speed = 0;
@@ -1363,10 +1362,10 @@ void set_alpha(void)
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-        
+
         Serial3.print("alpha ");
-        Serial3.println(tmp/1000);
-        
+        Serial3.println(tmp / 1000);
+
         set_new_command(&bot_command_alpha, (float) tmp / (1000));
     } else {
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
@@ -1375,10 +1374,10 @@ void set_alpha(void)
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-        
+
         Serial3.print("alpha ");
-        Serial3.println(tmp/(-1000));
-        
+        Serial3.println(tmp / (-1000));
+
         set_new_command(&bot_command_alpha, (float) tmp / (-1000));
     }
 }
@@ -1393,10 +1392,10 @@ void set_delta(void)
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-        
+
         Serial3.print("delta ");
-        Serial3.println(tmp/10);
-        
+        Serial3.println(tmp / 10);
+
         set_new_command(&bot_command_delta, (float) tmp / (10));
     } else {
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
@@ -1405,10 +1404,10 @@ void set_delta(void)
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
         tmp = (tmp * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-        
+
         Serial3.print("delta ");
-        Serial3.println(tmp/(-10));
-        
+        Serial3.println(tmp / (-10));
+
         set_new_command(&bot_command_delta, (float) tmp / (-10));
     }
 }
@@ -1507,42 +1506,40 @@ void get_goal_xy(void)
 {
     double x = 0, y = 0;
 
-    if(Serial.read() == '+') {
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = x / (10);
+    if (Serial.read() == '+') {
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = x / (10);
+    } else {
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = x / (-10);
     }
-    else {
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = x / (-10);
-    }
-    
-    if(Serial.read() == '+') {
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = y / 10;
-    }
-    else {
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = y / (-10);  
+
+    if (Serial.read() == '+') {
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = y / 10;
+    } else {
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = y / (-10);
     }
 
     Serial3.print("goto xy ");
@@ -1557,42 +1554,40 @@ void get_goal_xy_back(void)
 {
     double x = 0, y = 0;
 
-    if(Serial.read() == '+') {
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = x / (10);
+    if (Serial.read() == '+') {
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = x / (10);
+    } else {
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        x = x / (-10);
     }
-    else {
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = (x * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    x = x / (-10);
-    }
-    
-    if(Serial.read() == '+') {
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = y / 10;
-    }
-    else {
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
-    y = y / (-10);  
+
+    if (Serial.read() == '+') {
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = y / 10;
+    } else {
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = (y * 10) + ((Serial.read() & 0x3F | 0x30) - 48);
+        y = y / (-10);
     }
 
     Serial3.print("goto xy back ");
@@ -1605,58 +1600,55 @@ void get_goal_xy_back(void)
 
 void get_goal_xy_pawn(void)
 {
-double x_topawn;
-  double y_topawn;
-  int sens;
+    double x_topawn;
+    double y_topawn;
+    int sens;
 
-  double x = 0, y = 0;
+    double x = 0, y = 0;
 
-    if(Serial.read() == '+') {
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = x / (10);
-    }
-    else {
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = (x * 10) + (Serial.read() - 48);
-    x = x / (-10);
-    }
-    
-    if(Serial.read() == '+') {
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = y / 10;
-    }
-    else {
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = (y * 10) + (Serial.read() - 48);
-    y = y / (-10);  
+    if (Serial.read() == '+') {
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = x / (10);
+    } else {
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = (x * 10) + (Serial.read() - 48);
+        x = x / (-10);
     }
 
-  x_topawn = ((double) x);
-  y_topawn = ((double) y);
-            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-            if (sens == 0) {                               // Front
-                goto_xy(x_topawn, y_topawn);
-            } else {                                       // Back
-                goto_xy_back(x_topawn, y_topawn);
-            }
+    if (Serial.read() == '+') {
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = y / 10;
+    } else {
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = (y * 10) + (Serial.read() - 48);
+        y = y / (-10);
+    }
+
+    x_topawn = ((double) x);
+    y_topawn = ((double) y);
+    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+    if (sens == 0) {                                       // Front
+        goto_xy(x_topawn, y_topawn);
+    } else {                                               // Back
+        goto_xy_back(x_topawn, y_topawn);
+    }
 
 }
-
