@@ -221,7 +221,6 @@ ISR(TIMER1_OVF_vect)
         maximus.theta = t;
 
     }
-
     // Compute sensors
     BEACON_get_direction();
 

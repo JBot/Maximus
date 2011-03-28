@@ -89,8 +89,8 @@ void delay_ms(uint16_t millis)
 #define BEACON_SOUTH_PIN	47                         // A DEFINIR
 #define BEACON_EAST_PIN	        48                         // A DEFINIR
 #define BEACON_WEST_PIN	        49                         // A DEFINIR
-#define LEFT_REAR_SENSOR        30                         // A DEFINIR
-#define RIGHT_REAR_SENSOR       31                         // A DEFINIR
+#define LEFT_REAR_SENSOR        43                         // A DEFINIR
+#define RIGHT_REAR_SENSOR       42                         // A DEFINIR
 
 #define RESET_ROBOCLAW          45
 
@@ -107,8 +107,13 @@ void delay_ms(uint16_t millis)
 #define BEACON_EAST             2
 #define BEACON_WEST             3
 
-#define ALPHA_MAX_SPEED         9000
-#define DELTA_MAX_SPEED         37000
+#define ALPHA_MAX_SPEED         20000                      //25000//13000                      // 9000
+#define ALPHA_MAX_ACCEL         300
+#define ALPHA_MAX_DECEL         2500
+#define DELTA_MAX_SPEED         40000                      //50000//37000
+#define DELTA_MAX_ACCEL         900                        //600
+#define DELTA_MAX_DECEL         4000                       //1800
+
 
 /***********************/
 /* Specific structures */
@@ -229,6 +234,10 @@ volatile char transmit_status = 1;                         // 1 if OK / 0 if not
 Servo right_wheel;
 Servo left_wheel;
 
+int color_serial_in = 'a';
+int color = -1;                                            // -1 = blue ; 1 = red
+
+int time_in_match = 0;                                     // To count the time => 21900 ticks = 90 secondes
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -322,6 +331,16 @@ ISR(TIMER1_OVF_vect)
             if ((global_time_counter % 2) == 0)
                 move_motors(LEFTRIGHT);                    // Update the motor speed
     }
+
+    if (color_serial_in == 'O')
+        time_in_match++;
+
+    if (time_in_match > 21900) {                           // End of the match
+
+        Serial.println("STOP ROBOT");
+
+    }
+
 }
 
 // Timer 1 overflow interrupt service routine
@@ -335,18 +354,26 @@ ISR(TIMER1_OVF_vect)
 
 	int sensorValue = 0;
 
-	sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
-	front_distance_down_middle = (front_distance_down_middle + ( convert_longIR_value(sensorValue) ) * 2) / 3;
-	if( front_distance_down_middle > 430)
-		front_distance_down_middle = 0;
-	sensorValue = analogRead(PAWN_SENSOR_LEFT);
-	front_distance_down_left = (front_distance_down_left + ( convert_longIR_value(sensorValue) ) * 2) / 3;
-	sensorValue = analogRead(PAWN_SENSOR_RIGHT);
-	front_distance_down_right = (front_distance_down_right + ( convert_longIR_value(sensorValue) ) * 2) / 3;
-	sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
-	front_distance_up_left = (front_distance_up_left + ( convert_medIR_value(sensorValue) ) * 2) / 3;
-	sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
-	front_distance_up_right = (front_distance_up_right + ( convert_medIR_value(sensorValue) ) * 2) / 3;
+    sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
+    front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
+    if (front_distance_down_middle > 330 || front_distance_down_middle < 0)
+        front_distance_down_middle = 0;
+    sensorValue = analogRead(PAWN_SENSOR_LEFT);
+    front_distance_down_left = (front_distance_down_left + (convert_longIR_value(sensorValue)) * 2) / 3;
+    if (front_distance_down_left < 0)
+        front_distance_down_left = 150;
+    if (front_distance_down_left > 250)
+        front_distance_down_left = 0;    
+    sensorValue = analogRead(PAWN_SENSOR_RIGHT);
+    front_distance_down_right = (front_distance_down_right + (convert_longIR_value(sensorValue)) * 2) / 3;
+    if (front_distance_down_right < 0)
+        front_distance_down_right = 150;
+    if (front_distance_down_right > 250)
+        front_distance_down_right = 0;
+    sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
+    front_distance_up_left = (front_distance_up_left + (convert_medIR_value(sensorValue)) * 2) / 3;
+    sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
+    front_distance_up_right = (front_distance_up_right + (convert_medIR_value(sensorValue)) * 2) / 3;
 	
 	   Serial.print("left : ");
 	   Serial.print(front_distance_down_left);
@@ -480,7 +507,7 @@ void setup()
     // Compare A Match Interrupt: Off
     // Compare B Match Interrupt: Off
     // Compare C Match Interrupt: Off
-    /*  TCCR3A = 0x03;    // Interrupt every 16.4ms
+/*       TCCR3A = 0x03;    // Interrupt every 16.4ms
        TCCR3B = 0x04;
        TCNT3H = 0x00;
        TCNT3L = 0x00;
@@ -492,7 +519,7 @@ void setup()
        OCR3BL = 0x00;
        OCR3CH = 0x00;
        OCR3CL = 0x00;
-     */
+*/
 
     // External Interrupt(s) initialization
     EICRA = 0x00;
@@ -522,9 +549,9 @@ void setup()
     // Timer(s)/Counter(s) Interrupt(s) initialization
     TIMSK1 |= 0x01;
     TIFR1 |= 0x01;
-//    TIMSK3 |= 0x01;
-//    TIFR3 |= 0x01;
-
+/*    TIMSK3 |= 0x01;
+    TIFR3 |= 0x01;
+*/
 
     /******************************/
     /* Initialization of the code */
@@ -548,7 +575,7 @@ void setup()
     init_way_points();
 
 
-
+    //PAWN_go_down();
 
     // Global enable interrupts
     sei();
@@ -566,9 +593,11 @@ void setup()
     roboclaw_ON = 1;
 
     delay_ms(1000);
+    //PAWN_go_up();
+
     Serial3.print('C');
     delay_ms(10);
-    int color_serial_in = Serial3.read();
+    color_serial_in = Serial3.read();
     while ((color_serial_in != 'B') && (color_serial_in != 'R')) {
         delay_ms(100);
         Serial3.print('C');
@@ -576,14 +605,47 @@ void setup()
         color_serial_in = Serial3.read();
         //Serial.print(color_serial_in, BYTE);
     }
+    if (color_serial_in == 'R') {                          // Red selected
+        color = 1;
+        init_red_Robot(&maximus);
+
+    } else {                                               // Blue selected
+        color = -1;
+        init_blue_Robot(&maximus);
+
+    }
+    init_way_points();
+
+    // Do the auto initialization
+    init_first_position(&maximus);
+
+    Serial.print(maximus.pos_X);
+    Serial.print(" ");
+    Serial.print(maximus.pos_Y);
+    Serial.print(" ");
+    Serial.println(maximus.theta * RAD2DEG);
+
 
     delay_ms(500);
 
 
     // WAIT START COMMAND
 
+    Serial3.print('S');
+    delay_ms(10);
+    color_serial_in = Serial3.read();
+    while ((color_serial_in != 'O')) {
+        delay_ms(100);
+        Serial3.print('S');
+        delay_ms(10);
+        color_serial_in = Serial3.read();
+        //Serial.print(color_serial_in, BYTE);
+    }
+
+    time_in_match = 0;
+
     PAWN_release_pawn();
-    delay_ms(1000);
+    delay_ms(100);
 
 }
 
@@ -617,16 +679,20 @@ void loop()
 
     sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
     front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
-    if (front_distance_down_middle > 430 || front_distance_down_middle < 0)
+    if (front_distance_down_middle > 330 || front_distance_down_middle < 0)
         front_distance_down_middle = 0;
     sensorValue = analogRead(PAWN_SENSOR_LEFT);
     front_distance_down_left = (front_distance_down_left + (convert_longIR_value(sensorValue)) * 2) / 3;
     if (front_distance_down_left < 0)
         front_distance_down_left = 150;
+    if (front_distance_down_left > 250)
+        front_distance_down_left = 0;
     sensorValue = analogRead(PAWN_SENSOR_RIGHT);
     front_distance_down_right = (front_distance_down_right + (convert_longIR_value(sensorValue)) * 2) / 3;
     if (front_distance_down_right < 0)
         front_distance_down_right = 150;
+    if (front_distance_down_right > 250)
+        front_distance_down_right = 0;
     sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
     front_distance_up_left = (front_distance_up_left + (convert_medIR_value(sensorValue)) * 2) / 3;
     sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
@@ -702,6 +768,49 @@ void loop()
             ajusting_pawn = 0;
         }
 
+
+        if (go_grab_pawn >= 1) {
+
+            if ((front_distance_down_middle < 2)) {        //|| (digitalRead(INPUT_MOTION_PIN) && (go_grab_pawn == 2)) ) {
+                stop_robot();
+                go_grab_pawn = 0;
+                PAWN_release_pawn();
+                PAWN_go_down();
+                PAWN_grip_pawn();
+                //PAWN_go_up();
+                //delay_ms(1000);
+                if (pawn_stack == 0) {                     // Stacking pawn
+                    PAWN_go_up();
+                    pawn_stack = 1;
+                    delta_motor.max_speed = DELTA_MAX_SPEED;
+                    alpha_motor.max_speed = ALPHA_MAX_SPEED;
+                    has_pawn = TURNING_DIRECTION;
+                } else {                                   // Go put the pawn on the right space
+                    has_pawn = TAKE_PAWN;
+                }
+                //PAWN_release_pawn();
+                //delay_ms(3000);
+            } else {
+                if ((front_distance_down_middle < 50) && (front_distance_down_middle > 2)) {
+                    my_test_point = compute_pawn_position(&maximus, 210 + front_distance_down_middle * 10);
+                    /*Serial.print("X = ");
+                       Serial.print(my_test_point.x);
+                       Serial.print(" Y = ");
+                       Serial.print(my_test_point.y);
+                     */
+                    if ((check_point_in_map(&my_test_point) != 0) && (go_grab_pawn == 1)) {
+                        Serial.println("Point in the map");
+                        //MOTION_set_maxspeed_delta(25000);
+                        set_new_command(&bot_command_delta, max(((front_distance_down_middle + 2) * 10), 150));
+                        go_grab_pawn = 2;
+                    } else {
+                        Serial.println("Point NOT in the map");
+                    }
+                }
+            }
+        }
+
+
     }
 
 
@@ -765,7 +874,7 @@ void loop()
                         if ((check_point_in_map(&my_test_point) != 0) && (go_grab_pawn == 1)) {
                             Serial.println("Point in the map");
                             //MOTION_set_maxspeed_delta(25000);
-                            set_new_command(&bot_command_delta, ((front_distance_down_middle + 2) * 10));
+                            set_new_command(&bot_command_delta, max(((front_distance_down_middle + 2) * 10), 150));
                             go_grab_pawn = 2;
                         } else {
                             Serial.println("Point NOT in the map");
@@ -939,8 +1048,8 @@ void init_motors(void)
     alpha_motor.kP = 230;                                  //250//350                                  // 600
     alpha_motor.kI = 0;
     alpha_motor.kD = 340;                                  //300 //180                                  // 200
-    alpha_motor.accel = 300;                               //350//200;                               // 300
-    alpha_motor.decel = 1300;                              //1200;//1100;//1200;                              // 500
+    alpha_motor.accel = ALPHA_MAX_ACCEL;                   //300;                               //350//200;                               // 300
+    alpha_motor.decel = ALPHA_MAX_DECEL;                   //1300;                              //1200;//1100;//1200;                              // 500
     alpha_motor.max_speed = ALPHA_MAX_SPEED;               //7000;                          //8000
     alpha_motor.distance = 0.0;
 
@@ -953,11 +1062,288 @@ void init_motors(void)
     delta_motor.kP = 600;                                  // 600
     delta_motor.kI = 0;
     delta_motor.kD = 200;                                  // 100 * 1.09
-    delta_motor.accel = 600;                               //400;//500;
-    delta_motor.decel = 1800;                              //1350;//1100;//1200;
+    delta_motor.accel = DELTA_MAX_ACCEL;                   //600;                               //400;//500;
+    delta_motor.decel = DELTA_MAX_DECEL;                   //1800;                              //1350;//1100;//1200;
     delta_motor.max_speed = DELTA_MAX_SPEED;               //25000;//35000;
     delta_motor.distance = 0.0;
 }
+
+        /****************************/
+        /* INITIALIZATION FUNCTIONS */
+        /****************************/
+void init_blue_Robot(struct robot *my_robot)
+{
+    my_robot->pos_X = color * (1500 - DISTANCE_REAR_WHEELS);    //-1459;                               // -700         
+    my_robot->pos_Y = 192;                                 // 700          
+    my_robot->theta = 0;                                   // PI/2
+
+    my_color_points = blue_points;
+/*    
+    // Put the robot in low speed mode
+    delta_motor.max_speed = 12000;
+    alpha_motor.max_speed = 5000;
+    // go back to touch the wall
+    set_new_command(&bot_command_delta, -1000);
+    
+    while( (digitalRead(LEFT_REAR_SENSOR) == 1) || (digitalRead(RIGHT_REAR_SENSOR) == 1) ) {
+      delay(100);
+      
+    }
+    // Set the Y position and theta
+    my_robot->theta = PI/2;
+    my_robot->pos_Y = DISTANCE_REAR_WHEELS;
+    my_robot->pos_X = 0;
+
+    delay(100);
+    // Stop the motors
+    set_new_command(&bot_command_alpha, 0);
+    set_new_command(&bot_command_delta, 0);
+    // Go forward, turn, and go bachward to touch the other wall
+    set_new_command(&bot_command_delta, 150);
+    delay(2000);
+    set_new_command(&bot_command_alpha, (color * PI/2 * RAD2DEG));
+    delay(4000);
+    set_new_command(&bot_command_delta, -1000);
+    
+    while( (digitalRead(LEFT_REAR_SENSOR) == 1) || (digitalRead(RIGHT_REAR_SENSOR) == 1) ) {
+      delay(100);
+      
+    }
+    
+    // Set the X and theta values
+    my_robot->pos_X = color * (1500 - DISTANCE_REAR_WHEELS);
+    if(color == 1) {
+      my_robot->theta = PI;
+    }
+    else {
+      my_robot->theta = 0;
+    }
+    
+    delay(100);
+    
+    // Stop the motors
+    set_new_command(&bot_command_alpha, 0);
+    set_new_command(&bot_command_delta, 0);
+
+    delay(1000);
+    // Go in the middle of the starting area
+    set_new_command(&bot_command_delta, 100);
+    
+    delay(2000);
+    // Set the speed to the maximum
+    delta_motor.max_speed = DELTA_MAX_SPEED;
+    alpha_motor.max_speed = ALPHA_MAX_SPEED;
+*/
+
+}
+
+void init_red_Robot(struct robot *my_robot)
+{
+    my_robot->pos_X = color * (1500 - DISTANCE_REAR_WHEELS);    //1459;                                // -700         
+    my_robot->pos_Y = 192;                                 // 700          
+    my_robot->theta = PI;                                  // PI/2
+
+    my_color_points = red_points;
+}
+
+void init_first_position(struct robot *my_robot)
+{
+    // Put the robot in low speed mode
+    delta_motor.max_speed = 12000;
+    alpha_motor.max_speed = 5000;
+    // go back to touch the wall
+    set_new_command(&bot_command_delta, -1000);
+
+    while ((digitalRead(LEFT_REAR_SENSOR) == 0) || (digitalRead(RIGHT_REAR_SENSOR) == 0)) {
+        delay(100);
+
+    }
+    // Set the Y position and theta
+    my_robot->theta = PI / 2;
+    my_robot->pos_Y = DISTANCE_REAR_WHEELS;
+    my_robot->pos_X = 0;
+
+    delay(100);
+    // Stop the motors
+    set_new_command(&bot_command_alpha, 0);
+    set_new_command(&bot_command_delta, 0);
+    // Go forward, turn, and go bachward to touch the other wall
+    set_new_command(&bot_command_delta, 150);
+    delay(2000);
+    set_new_command(&bot_command_alpha, (color * PI / 2 * RAD2DEG));
+    delay(4000);
+    set_new_command(&bot_command_delta, -1000);
+
+    while ((digitalRead(LEFT_REAR_SENSOR) == 0) || (digitalRead(RIGHT_REAR_SENSOR) == 0)) {
+        delay(100);
+
+    }
+
+    // Set the X and theta values
+    my_robot->pos_X = color * (1500 - DISTANCE_REAR_WHEELS);
+    if (color == 1) {
+        my_robot->theta = PI;
+    } else {
+        my_robot->theta = 0;
+    }
+
+    delay(100);
+
+    // Stop the motors
+    set_new_command(&bot_command_alpha, 0);
+    set_new_command(&bot_command_delta, 0);
+
+    delay(1000);
+    // Go in the middle of the starting area
+    set_new_command(&bot_command_delta, 100);
+
+    delay(2000);
+    // Set the speed to the maximum
+    delta_motor.max_speed = DELTA_MAX_SPEED;
+    alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+}
+
+void init_color_points(void)
+{
+    /* Red points */
+    red_points[0].x = -175 + 350 + 350;
+    red_points[1].x = -175;
+    red_points[2].x = -175 - 350 - 350;
+    red_points[0].y = 175;
+    red_points[1].y = 175;
+    red_points[2].y = 175;
+
+    red_points[3].x = 175 + 350 + 350;
+    red_points[4].x = 175;
+    red_points[5].x = 175 - 350 - 350;
+    red_points[3].y = 175 + 350;
+    red_points[4].y = 175 + 350;
+    red_points[5].y = 175 + 350;
+
+    red_points[6].x = -175 + 350 + 350;
+    red_points[7].x = -175;
+    red_points[8].x = -175 - 350 - 350;
+    red_points[6].y = 175 + 350 + 350;
+    red_points[7].y = 175 + 350 + 350;
+    red_points[8].y = 175 + 350 + 350;
+
+    red_points[9].x = 175 + 350 + 350;
+    red_points[10].x = 175;
+    red_points[11].x = 175 - 350 - 350;
+    red_points[9].y = 175 + 350 + 350 + 350;
+    red_points[10].y = 175 + 350 + 350 + 350;
+    red_points[11].y = 175 + 350 + 350 + 350;
+
+    red_points[12].x = -175 + 350 + 350;
+    red_points[13].x = -175;
+    red_points[14].x = -175 - 350 - 350;
+    red_points[12].y = 175 + 350 + 350 + 350 + 350;
+    red_points[13].y = 175 + 350 + 350 + 350 + 350;
+    red_points[14].y = 175 + 350 + 350 + 350 + 350;
+
+    red_points[15].x = 175 + 350 + 350;
+    red_points[16].x = 175;
+    red_points[17].x = 175 - 350 - 350;
+    red_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+    red_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
+    red_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+
+    /* Blue points */
+    blue_points[0].x = 175 + 350 + 350;
+    blue_points[1].x = 175;
+    blue_points[2].x = 175 - 350 - 350;
+    blue_points[0].y = 175;
+    blue_points[1].y = 175;
+    blue_points[2].y = 175;
+
+    blue_points[3].x = -175 + 350 + 350;
+    blue_points[4].x = -175;
+    blue_points[5].x = -175 - 350 - 350;
+    blue_points[3].y = 175 + 350;
+    blue_points[4].y = 175 + 350;
+    blue_points[5].y = 175 + 350;
+
+    blue_points[6].x = 175 + 350 + 350;
+    blue_points[7].x = 175;
+    blue_points[8].x = 175 - 350 - 350;
+    blue_points[6].y = 175 + 350 + 350;
+    blue_points[7].y = 175 + 350 + 350;
+    blue_points[8].y = 175 + 350 + 350;
+
+    blue_points[9].x = -175 + 350 + 350;
+    blue_points[10].x = -175;
+    blue_points[11].x = -175 - 350 - 350;
+    blue_points[9].y = 175 + 350 + 350 + 350;
+    blue_points[10].y = 175 + 350 + 350 + 350;
+    blue_points[11].y = 175 + 350 + 350 + 350;
+
+    blue_points[12].x = 175 + 350 + 350;
+    blue_points[13].x = 175;
+    blue_points[14].x = 175 - 350 - 350;
+    blue_points[12].y = 175 + 350 + 350 + 350 + 350;
+    blue_points[13].y = 175 + 350 + 350 + 350 + 350;
+    blue_points[14].y = 175 + 350 + 350 + 350 + 350;
+
+    blue_points[15].x = -175 + 350 + 350;
+    blue_points[16].x = -175;
+    blue_points[17].x = -175 - 350 - 350;
+    blue_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+    blue_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
+    blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
+
+}
+
+void init_way_points(void)
+{
+    way_points[0].x = color * 1100;
+    way_points[0].y = 192;
+    way_points[1].x = color * 700;
+    way_points[1].y = 350;
+    way_points[2].x = color * 700;
+    way_points[2].y = 700;
+    way_points[3].x = color * 700;
+    way_points[3].y = 1600;
+
+    way_points[4].x = color * 350;
+    way_points[4].y = 1600;                                //1400;
+    way_points[5].x = color * 350;
+    way_points[5].y = 700;
+    way_points[6].x = color * 700;
+    way_points[6].y = 350;
+
+    way_points[7].x = color * 700;
+    way_points[7].y = 350;
+    way_points[7].x = color * 700;
+    way_points[7].y = 350;
+    way_points[8].x = color * 700;
+    way_points[8].y = 350;
+    way_points[9].x = color * 700;
+    way_points[9].y = 350;
+
+}
+
+void init_PAWN_status(void)
+{
+    //pinMode(LIFT_MOTOR_PWM, OUTPUT);
+    pinMode(LIFT_MOTOR_SENS, OUTPUT);
+
+    pinMode(LIFT_SWITCH_UP, INPUT);
+    pinMode(LIFT_SWITCH_DOWN, INPUT);
+
+    gripServo_right.attach(RIGHT_SERVO);
+    gripServo_left.attach(LEFT_SERVO);
+
+    lifter_servo.attach(LIFT_MOTOR_PWM);
+    lifter_servo.write(90);
+
+    // PAWN_go_down();
+    PAWN_go_up();
+    PAWN_grip_pawn();
+
+}
+
+
 
 
 /***********************/
@@ -1152,13 +1538,13 @@ void check_RoboClaw_response(char addr)
 {
 
     if (Serial2.available() >= 3) {
-        Serial.println("RoboClaw responding");
+        //Serial.println("RoboClaw responding");
         Serial2.read();
         Serial2.read();
         Serial2.read();
     } else {
         digitalWrite(RESET_ROBOCLAW, LOW);
-        Serial.println("RoboClaw not responding anymore");
+        //Serial.println("RoboClaw not responding anymore");
         delay(1);
         digitalWrite(RESET_ROBOCLAW, HIGH);
     }
@@ -1503,166 +1889,7 @@ void stop_robot(void)
 
 
 
-        /****************************/
-        /* INITIALIZATION FUNCTIONS */
-        /****************************/
-void init_blue_Robot(struct robot *my_robot)
-{
-    my_robot->pos_X = -1500 + DISTANCE_REAR_WHEELS;        //-1459;                               // -700         
-    my_robot->pos_Y = 192;                                 // 700          
-    my_robot->theta = 0;                                   // PI/2
 
-    my_color_points = blue_points;
-}
-
-void init_red_Robot(struct robot *my_robot)
-{
-    my_robot->pos_X = 1500 - DISTANCE_REAR_WHEELS;         //1459;                                // -700         
-    my_robot->pos_Y = 192;                                 // 700          
-    my_robot->theta = PI;                                  // PI/2
-
-    my_color_points = red_points;
-}
-
-
-void init_color_points(void)
-{
-    /* Red points */
-    red_points[0].x = -175 + 350 + 350;
-    red_points[1].x = -175;
-    red_points[2].x = -175 - 350 - 350;
-    red_points[0].y = 175;
-    red_points[1].y = 175;
-    red_points[2].y = 175;
-
-    red_points[3].x = 175 + 350 + 350;
-    red_points[4].x = 175;
-    red_points[5].x = 175 - 350 - 350;
-    red_points[3].y = 175 + 350;
-    red_points[4].y = 175 + 350;
-    red_points[5].y = 175 + 350;
-
-    red_points[6].x = -175 + 350 + 350;
-    red_points[7].x = -175;
-    red_points[8].x = -175 - 350 - 350;
-    red_points[6].y = 175 + 350 + 350;
-    red_points[7].y = 175 + 350 + 350;
-    red_points[8].y = 175 + 350 + 350;
-
-    red_points[9].x = 175 + 350 + 350;
-    red_points[10].x = 175;
-    red_points[11].x = 175 - 350 - 350;
-    red_points[9].y = 175 + 350 + 350 + 350;
-    red_points[10].y = 175 + 350 + 350 + 350;
-    red_points[11].y = 175 + 350 + 350 + 350;
-
-    red_points[12].x = -175 + 350 + 350;
-    red_points[13].x = -175;
-    red_points[14].x = -175 - 350 - 350;
-    red_points[12].y = 175 + 350 + 350 + 350 + 350;
-    red_points[13].y = 175 + 350 + 350 + 350 + 350;
-    red_points[14].y = 175 + 350 + 350 + 350 + 350;
-
-    red_points[15].x = 175 + 350 + 350;
-    red_points[16].x = 175;
-    red_points[17].x = 175 - 350 - 350;
-    red_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-    red_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
-    red_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-
-    /* Blue points */
-    blue_points[0].x = 175 + 350 + 350;
-    blue_points[1].x = 175;
-    blue_points[2].x = 175 - 350 - 350;
-    blue_points[0].y = 175;
-    blue_points[1].y = 175;
-    blue_points[2].y = 175;
-
-    blue_points[3].x = -175 + 350 + 350;
-    blue_points[4].x = -175;
-    blue_points[5].x = -175 - 350 - 350;
-    blue_points[3].y = 175 + 350;
-    blue_points[4].y = 175 + 350;
-    blue_points[5].y = 175 + 350;
-
-    blue_points[6].x = 175 + 350 + 350;
-    blue_points[7].x = 175;
-    blue_points[8].x = 175 - 350 - 350;
-    blue_points[6].y = 175 + 350 + 350;
-    blue_points[7].y = 175 + 350 + 350;
-    blue_points[8].y = 175 + 350 + 350;
-
-    blue_points[9].x = -175 + 350 + 350;
-    blue_points[10].x = -175;
-    blue_points[11].x = -175 - 350 - 350;
-    blue_points[9].y = 175 + 350 + 350 + 350;
-    blue_points[10].y = 175 + 350 + 350 + 350;
-    blue_points[11].y = 175 + 350 + 350 + 350;
-
-    blue_points[12].x = 175 + 350 + 350;
-    blue_points[13].x = 175;
-    blue_points[14].x = 175 - 350 - 350;
-    blue_points[12].y = 175 + 350 + 350 + 350 + 350;
-    blue_points[13].y = 175 + 350 + 350 + 350 + 350;
-    blue_points[14].y = 175 + 350 + 350 + 350 + 350;
-
-    blue_points[15].x = -175 + 350 + 350;
-    blue_points[16].x = -175;
-    blue_points[17].x = -175 - 350 - 350;
-    blue_points[15].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-    blue_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
-    blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
-
-}
-
-void init_way_points(void)
-{
-    way_points[0].x = -1100;
-    way_points[0].y = 192;
-    way_points[1].x = -700;
-    way_points[1].y = 350;
-    way_points[2].x = -700;
-    way_points[2].y = 700;
-    way_points[3].x = -700;
-    way_points[3].y = 1600;
-
-    way_points[4].x = -350;
-    way_points[4].y = 1600;                                //1400;
-    way_points[5].x = -350;
-    way_points[5].y = 700;
-    way_points[6].x = -700;
-    way_points[6].y = 350;
-
-    way_points[7].x = -700;
-    way_points[7].y = 350;
-    way_points[7].x = -700;
-    way_points[7].y = 350;
-    way_points[8].x = -700;
-    way_points[8].y = 350;
-    way_points[9].x = -700;
-    way_points[9].y = 350;
-
-}
-
-void init_PAWN_status(void)
-{
-    //pinMode(LIFT_MOTOR_PWM, OUTPUT);
-    pinMode(LIFT_MOTOR_SENS, OUTPUT);
-
-    pinMode(LIFT_SWITCH_UP, INPUT);
-    pinMode(LIFT_SWITCH_DOWN, INPUT);
-
-    gripServo_right.attach(RIGHT_SERVO);
-    gripServo_left.attach(LEFT_SERVO);
-
-    lifter_servo.attach(LIFT_MOTOR_PWM);
-    lifter_servo.write(90);
-
-    // PAWN_go_down();
-    PAWN_go_up();
-    PAWN_grip_pawn();
-
-}
 
 
 
@@ -1744,7 +1971,7 @@ int trajectory_intersection_pawn(struct Point *start, struct Point *end, struct 
      */
     if (delta >= 0)
         result = 1;
-    Serial.println(delta);
+    //Serial.println(delta);
     return result;
 }
 
@@ -1816,8 +2043,8 @@ void PAWN_release_pawn(void)
 {
     //gripServo_right.write(91);
     //gripServo_left.write(100);
-    gripServo_right.write(111);
-    gripServo_left.write(80);
+    gripServo_right.write(121);
+    gripServo_left.write(70);
 }
 
 void PAWN_go_up(void)
@@ -1826,7 +2053,7 @@ void PAWN_go_up(void)
     // Start going up
     //digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_UP);
     //analogWrite(LIFT_MOTOR_PWM, 100);
-    lifter_servo.write(118);
+    lifter_servo.write(112);
     // Stop when the microswitch in activated
     buttonState = digitalRead(LIFT_SWITCH_UP);
     while (buttonState == 1) {
@@ -1845,11 +2072,11 @@ void PAWN_go_down(void)
     // Start going up
     //digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_DOWN);
     //analogWrite(LIFT_MOTOR_PWM, 100);
-    lifter_servo.write(58);
+    lifter_servo.write(68);
     // Stop when the microswitch in activated
     buttonState = digitalRead(LIFT_SWITCH_DOWN);
     while (buttonState == 1) {
-        delay_ms(15);
+        delay_ms(12);
         buttonState = digitalRead(LIFT_SWITCH_DOWN);
     }
     // Stop
