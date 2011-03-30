@@ -1,3 +1,12 @@
+/*
+ * ----------------------------------------------------------------------------
+ * "THE BEER-WARE LICENSE" (Revision 42):
+ * JBot wrote this file. As long as you retain this notice you
+ * can do whatever you want with this stuff. If we meet some day, and you think
+ * this stuff is worth it, you can buy me a beer in return.
+ * ----------------------------------------------------------------------------
+ */
+
 /*****************************************************
 Project : Maximus
 Version : 1.0
@@ -60,7 +69,7 @@ void delay_ms(uint16_t millis)
 
 
 
-#define DISTANCE_REAR_WHEELS    45                         // Distance between the rear of the robot and the center of the 2 wheels
+#define DISTANCE_REAR_WHEELS    53                         // Distance between the rear of the robot and the center of the 2 wheels
 
 #define NO_PAWN                 0
 #define TAKE_PAWN               1
@@ -68,20 +77,23 @@ void delay_ms(uint16_t millis)
 #define GO_BACK                 3
 #define GRABBING                4
 #define TURNING_DIRECTION       5
+#define AVOIDING1               6
+#define AVOIDING2               7
+#define FIN_MATCH               8
 
 // I/Os definition
 //#define INPUT_MOTION_PIN        2
 #define RIGHT_SERVO             12
 #define LEFT_SERVO              11
 #define PAWN_SENSOR             25                         // A DEFINIR // MICROSWITCH
-#define PAWN_SENSOR_LEFT        0                          // A DEFINIR
-#define PAWN_SENSOR_MIDDLE      1                          // A DEFINIR
-#define PAWN_SENSOR_RIGHT       2                          // A DEFINIR
+#define PAWN_SENSOR_LEFT        0                          
+#define PAWN_SENSOR_MIDDLE      1                          
+#define PAWN_SENSOR_RIGHT       2                          
 #define OPPONENT_SENSOR_LEFT    3                          // A DEFINIR
 #define OPPONENT_SENSOR_RIGHT   4                          // A DEFINIR
-#define RIGHT_IR_SENSOR         10                         // A DEFINIR
-#define LEFT_IR_SENSOR          11                         // A DEFINIR
-#define LIFT_MOTOR_PWM		40                         // A DEFINIR
+#define RIGHT_IR_SENSOR         5                         // A DEFINIR
+#define LEFT_IR_SENSOR          6                         // A DEFINIR
+#define LIFT_MOTOR_PWM		40                         
 #define LIFT_MOTOR_SENS		41                         // A DEFINIR
 #define LIFT_SWITCH_UP          22
 #define LIFT_SWITCH_DOWN        23
@@ -89,8 +101,8 @@ void delay_ms(uint16_t millis)
 #define BEACON_SOUTH_PIN	47                         // A DEFINIR
 #define BEACON_EAST_PIN	        48                         // A DEFINIR
 #define BEACON_WEST_PIN	        49                         // A DEFINIR
-#define LEFT_REAR_SENSOR        43                         // A DEFINIR
-#define RIGHT_REAR_SENSOR       42                         // A DEFINIR
+#define LEFT_REAR_SENSOR        43                         
+#define RIGHT_REAR_SENSOR       42                         
 
 #define RESET_ROBOCLAW          45
 
@@ -107,10 +119,10 @@ void delay_ms(uint16_t millis)
 #define BEACON_EAST             2
 #define BEACON_WEST             3
 
-#define ALPHA_MAX_SPEED         20000                      //25000//13000                      // 9000
+#define ALPHA_MAX_SPEED         24000                      //25000//13000                      // 9000
 #define ALPHA_MAX_ACCEL         300
 #define ALPHA_MAX_DECEL         2500
-#define DELTA_MAX_SPEED         40000                      //50000//37000
+#define DELTA_MAX_SPEED         45000                      //50000//37000
 #define DELTA_MAX_ACCEL         900                        //600
 #define DELTA_MAX_DECEL         4000                       //1800
 
@@ -335,10 +347,11 @@ ISR(TIMER1_OVF_vect)
     if (color_serial_in == 'O')
         time_in_match++;
 
-    if (time_in_match > 21900) {                           // End of the match
-
-        Serial.println("STOP ROBOT");
-
+    if (time_in_match > 10970) {                           // End of the match
+        time_in_match = 21901;
+        //Serial.println("STOP ROBOT");
+        stop_robot();        
+        has_pawn = FIN_MATCH;
     }
 
 }
@@ -645,7 +658,7 @@ void setup()
     time_in_match = 0;
 
     PAWN_release_pawn();
-    delay_ms(100);
+    delay_ms(10);
 
 }
 
@@ -721,28 +734,33 @@ void loop()
 
                 if (nb_check == 2) {
 
+                  /*
                     stop_robot();
                     delta_motor.max_speed = 25000;
                     alpha_motor.max_speed = 6000;
                     has_pawn = GRABBING;
                     ajusting_pawn = 1;
-
-
+                    */
+                    stop_robot();
+                    has_pawn = AVOIDING1;
+                    delay(300);
+                    set_new_command(&bot_command_alpha, -PI/2 * RAD2DEG);                    
+/*
                     Serial.print("left : ");
                     Serial.print(front_distance_down_left);
                     Serial.print(" middle : ");
                     Serial.print(front_distance_down_middle);
                     Serial.print(" right : ");
                     Serial.println(front_distance_down_right);
-
+*/
                     nb_check = 0;
                 } else {
                     nb_check++;
                 }
             }
         } else {
-            Serial.print("-Point NOT in the map ");
-            Serial.println(front_distance_down_middle);
+//            Serial.print("-Point NOT in the map ");
+//            Serial.println(front_distance_down_middle);
             if (front_distance_down_middle < 26) {
                 stop_robot();
             }
@@ -779,7 +797,7 @@ void loop()
                 PAWN_grip_pawn();
                 //PAWN_go_up();
                 //delay_ms(1000);
-                if (pawn_stack == 0) {                     // Stacking pawn
+                if (pawn_stack == 12) {                     // Stacking pawn
                     PAWN_go_up();
                     pawn_stack = 1;
                     delta_motor.max_speed = DELTA_MAX_SPEED;
@@ -799,12 +817,12 @@ void loop()
                        Serial.print(my_test_point.y);
                      */
                     if ((check_point_in_map(&my_test_point) != 0) && (go_grab_pawn == 1)) {
-                        Serial.println("Point in the map");
+//                        Serial.println("Point in the map");
                         //MOTION_set_maxspeed_delta(25000);
                         set_new_command(&bot_command_delta, max(((front_distance_down_middle + 2) * 10), 150));
                         go_grab_pawn = 2;
                     } else {
-                        Serial.println("Point NOT in the map");
+//                        Serial.println("Point NOT in the map");
                     }
                 }
             }
@@ -852,7 +870,7 @@ void loop()
                     PAWN_grip_pawn();
                     //PAWN_go_up();
                     //delay_ms(1000);
-                    if (pawn_stack == 0) {                 // Stacking pawn
+                    if (pawn_stack == 12) {                 // Stacking pawn
                         PAWN_go_up();
                         pawn_stack = 1;
                         delta_motor.max_speed = DELTA_MAX_SPEED;
@@ -872,12 +890,12 @@ void loop()
                            Serial.print(my_test_point.y);
                          */
                         if ((check_point_in_map(&my_test_point) != 0) && (go_grab_pawn == 1)) {
-                            Serial.println("Point in the map");
+//                            Serial.println("Point in the map");
                             //MOTION_set_maxspeed_delta(25000);
                             set_new_command(&bot_command_delta, max(((front_distance_down_middle + 2) * 10), 150));
                             go_grab_pawn = 2;
                         } else {
-                            Serial.println("Point NOT in the map");
+//                            Serial.println("Point NOT in the map");
                         }
                     }
                 }
@@ -922,7 +940,17 @@ void loop()
 
             if (trajectory_intersection_pawn(&the_point, &way_points[way_point_index - 1], &release_point, 100 + 130) == 1) {   // pawn is in the trajectory
                 // Compute an intermediate way_point
-                Serial.println("In trajectory");
+                Serial.print("In trajectory ");
+                if(angle_coord(&maximus, release_point.x, release_point.y) > 0 ) { // Turn on right to avoid the pawn
+                  set_new_command(&bot_command_alpha, -30);
+                  set_new_command(&bot_command_delta, distance_coord(&maximus, release_point.x, release_point.y));
+                  Serial.println("go right");
+                }
+                else { // Turn on left to avoid the pawn
+                  set_new_command(&bot_command_alpha, 30);
+                  set_new_command(&bot_command_delta, distance_coord(&maximus, release_point.x, release_point.y));
+                  Serial.println("go left");
+                }
                 has_pawn = TURNING_DIRECTION;
             } else {
                 Serial.println("Not in trajectory");
@@ -949,8 +977,29 @@ void loop()
             Serial.println(way_points[way_point_index - 1].y);
             has_pawn = NO_PAWN;
             break;
+
+
+        case AVOIDING1 :
+            delta_motor.max_speed = 40000;
+            alpha_motor.max_speed = 10000;
+            
+            set_new_command(&bot_command_alpha, PI * RAD2DEG);
+            set_new_command(&bot_command_delta, 1256);
+            has_pawn = AVOIDING2;    
+            break;
+        case AVOIDING2 :
+            delta_motor.max_speed = DELTA_MAX_SPEED;
+            alpha_motor.max_speed = ALPHA_MAX_SPEED;
+            
+            goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+            has_pawn = NO_PAWN;    
+            break;
+        case FIN_MATCH :
+            delta_motor.max_speed = 1;
+            alpha_motor.max_speed = 1;
+            break;
         default:                                          // has no pawn => Move to the next position
-            if (turn_counter < 3) {
+            if (turn_counter < 20) {
                 if (way_point_index >= 6) {
                     way_point_index = 2;
                     turn_counter++;
@@ -963,7 +1012,7 @@ void loop()
                 Serial.println(way_points[way_point_index].y);
                 way_point_index++;
             } else {
-                if (turn_counter == 3) {
+                if (turn_counter == 20) {
                     goto_xy_back(-700, 200);
                     turn_counter++;
                 }
@@ -983,7 +1032,12 @@ void loop()
 
     //}
 
-
+  Serial.print("X : ");
+  Serial.print(maximus.pos_X);
+  Serial.print(" Y : ");
+  Serial.print(maximus.pos_Y);
+  Serial.print(" Theta : ");
+  Serial.println(maximus.theta*RAD2DEG);
 
 
 }
@@ -1158,6 +1212,7 @@ void init_first_position(struct robot *my_robot)
         delay(100);
 
     }
+    delay(300);
     // Set the Y position and theta
     my_robot->theta = PI / 2;
     my_robot->pos_Y = DISTANCE_REAR_WHEELS;
@@ -1178,7 +1233,7 @@ void init_first_position(struct robot *my_robot)
         delay(100);
 
     }
-
+    delay(300);
     // Set the X and theta values
     my_robot->pos_X = color * (1500 - DISTANCE_REAR_WHEELS);
     if (color == 1) {
@@ -1297,7 +1352,7 @@ void init_color_points(void)
 void init_way_points(void)
 {
     way_points[0].x = color * 1100;
-    way_points[0].y = 192;
+    way_points[0].y = 200;
     way_points[1].x = color * 700;
     way_points[1].y = 350;
     way_points[2].x = color * 700;
@@ -1879,8 +1934,8 @@ void start_position_motion_control(void)
 void stop_robot(void)
 {
     set_new_command(&bot_command_alpha, 0);
-    set_new_command(&prev_bot_command_delta, delta_motor.des_speed / 800);      // depends on current speed
-    set_new_command(&bot_command_delta, delta_motor.des_speed / 800);
+    set_new_command(&prev_bot_command_delta, 0);      // depends on current speed
+    set_new_command(&bot_command_delta, delta_motor.des_speed / 800); // depends on current speed
     //right_motor.des_speed = 0;
     //left_motor.des_speed = 0;
     //write_RoboClaw_speed_M1M2(128, 0, 0);

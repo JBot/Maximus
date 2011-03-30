@@ -1,3 +1,11 @@
+/*
+ * ----------------------------------------------------------------------------
+ * "THE BEER-WARE LICENSE" (Revision 42):
+ * JBot wrote this file. As long as you retain this notice you
+ * can do whatever you want with this stuff. If we meet some day, and you think
+ * this stuff is worth it, you can buy me a beer in return.
+ * ----------------------------------------------------------------------------
+ */
 /*****************************************************
 Project : Maximus
 Version : 1
@@ -16,7 +24,7 @@ Clock frequency : 16,00 MHz
 //number of lines in display=1
 LCD4Bit_mod lcd = LCD4Bit_mod(2);
 
-#define START_PIN  5
+#define START_PIN  2
 
 //Key message
 char msgs[5][15] = { "Right Key OK ",
@@ -89,9 +97,9 @@ void loop()
 
     delay(10);
     if (digitalRead(START_PIN) == 0) {
-        start_robot = 0;
-    } else {
         start_robot = 1;
+    } else {
+        start_robot = 0;
     }
 
 
