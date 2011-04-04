@@ -367,12 +367,25 @@ ISR(TIMER1_OVF_vect)
 
 }
 
-// Timer 1 overflow interrupt service routine
+// Timer 3 overflow interrupt service routine
 /*ISR(TIMER3_OVF_vect)
 {
 	sei();                                                 // enable interrupts
 
 
+    if() { // Si on veut avancer mais que notre vitesse est nulle 
+
+
+    }
+    else { // On remet le compteur a 0
+      
+    }
+
+
+    if() { // Si le compteur est atteint
+      // On recule et on va au milieu du terrain
+      
+    }
 	// Compute sensors
 	BEACON_get_direction();
 
@@ -655,25 +668,9 @@ while(1) {
 
     int sensorValue = 0;
 
-    sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
-    //front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
-    front_distance_down_middle = (front_distance_down_middle + (convert_medIR_value(sensorValue)) * 2) / 3;
-    if (front_distance_down_middle > 80 || front_distance_down_middle < 0)
-        front_distance_down_middle = 80;
-        sensorValue = analogRead(PAWN_SENSOR_LEFT);
-    //front_distance_down_left = (front_distance_down_left + (convert_longIR_value(sensorValue)) * 2) / 3;
-    front_distance_down_left = (front_distance_down_left + (convert_medIR_value(sensorValue)) * 2) / 3;
-    if (front_distance_down_left < 0)
-        front_distance_down_left = 80;
-    if (front_distance_down_left > 80)
-        front_distance_down_left = 80;
-    sensorValue = analogRead(PAWN_SENSOR_RIGHT);
-    //front_distance_down_right = (front_distance_down_right + (convert_longIR_value(sensorValue)) * 2) / 3;
-    front_distance_down_right = (front_distance_down_right + (convert_medIR_value(sensorValue)) * 2) / 3;
-    if (front_distance_down_right < 0)
-        front_distance_down_right = 80;
-    if (front_distance_down_right > 80)
-        front_distance_down_right = 80;
+
+read_down_IR();
+
     sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
     front_distance_up_left = (front_distance_up_left + (convert_medIR_value(sensorValue)) * 2) / 3;
     sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
@@ -812,7 +809,7 @@ void loop()
 
         sensorValue = 0;
 
-        sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
+/*        sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
         //front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
         front_distance_down_middle = (front_distance_down_middle + (convert_medIR_value(sensorValue)) * 2) / 3;
         if (front_distance_down_middle > 80 || front_distance_down_middle < 0)
@@ -831,6 +828,8 @@ void loop()
             front_distance_down_right = 80;
         if (front_distance_down_right > 80)
             front_distance_down_right = 80;
+            */
+        read_down_IR();
         sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
         front_distance_up_left = (front_distance_up_left + (convert_medIR_value(sensorValue)) * 2) / 3;
         sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
@@ -890,7 +889,7 @@ void loop()
                             //avoid_radius = front_distance_down_middle * 10;
                             delay(400);
 
-
+/*
                             sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
                             //front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
                             front_distance_down_middle = (front_distance_down_middle + (convert_medIR_value(sensorValue)) * 2) / 3;
@@ -910,6 +909,9 @@ void loop()
                                 front_distance_down_right = 80;
                             if (front_distance_down_right > 80)
                                 front_distance_down_right = 80;
+                            */
+                            read_down_IR();
+
                             sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
                             front_distance_up_left = (front_distance_up_left + (convert_medIR_value(sensorValue)) * 2) / 3;
                             sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
@@ -1068,7 +1070,7 @@ void loop()
                 } else {
                     if ((front_distance_down_middle < 50) && (front_distance_down_middle > 2)) {
                         my_test_point = estimate_center(&maximus);
-                        Serial.print("X = ");
+/*                        Serial.print("X = ");
                         Serial.print(my_test_point.x);
                         Serial.print(" Y = ");
                         Serial.println(my_test_point.y);
@@ -1078,7 +1080,7 @@ void loop()
                         Serial.print(front_distance_down_middle);
                         Serial.print(" pright : ");
                         Serial.println(front_distance_down_right);
-
+*/
                         //Serial.print(" gograb ");
                         //Serial.println(go_grab_pawn+0);
                         if (go_grab_pawn == 1) {
@@ -1088,6 +1090,28 @@ void loop()
                                 if (find_pawn_in_our_color(&my_test_point, my_color_points, 18) != 0) {
                                     // Eviter le pion
                                     Serial.println("Pawn in our color, TODO not grab");
+
+
+
+                                    stop_robot();
+                                    has_pawn = AVOIDING1;
+                                    //avoid_radius = front_distance_down_middle * 10;
+                                    delay(300);
+
+
+                                    release_point = my_test_point;
+                                    avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                                    double theangle = angle_coord(&maximus, release_point.x, release_point.y);
+
+                                    if (theangle < 0) {    // Avoid by left
+                                        set_new_command(&bot_command_alpha, (theangle + PI / 2) * RAD2DEG);
+                                    } else {               // Avoid by right
+                                        set_new_command(&bot_command_alpha, (theangle - PI / 2) * RAD2DEG);
+                                    }
+
+
+
+
                                 } else {
                                     set_new_command(&bot_command_delta, max(((front_distance_down_middle + 2) * 10), 150));
                                     //go_grab_pawn = 2;
@@ -1121,6 +1145,8 @@ void loop()
             } else {
                 Serial.println("Not anymore in trajectory");
                 stop_robot();
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
                 has_pawn = TURNING_DIRECTION;
                 //delay(400);
 
@@ -1304,12 +1330,11 @@ void loop()
                 break;
             case GOTO_RELEASE:                            // The robot have a pawn and is on his release point
                 PAWN_release_pawn();
+                set_new_command(&bot_command_delta, (-180));
                 PAWN_go_up();
                 pawn_stack = 0;
 
-                //MOTION_set_delta(-180);
-                set_new_command(&bot_command_delta, (-180));
-                delay_ms(100);
+                //delay_ms(100);
                 has_pawn = GO_BACK;
                 break;
 
@@ -1404,7 +1429,7 @@ void loop()
                 break;
             }
 
-            delay_ms(100);
+            delay_ms(40);
             //}
 
 
@@ -1439,7 +1464,7 @@ void loop()
         BEACON_get_direction();
 
         sensorValue = 0;
-
+/*
         sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
         front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
         if (front_distance_down_middle > 330 || front_distance_down_middle < 0)
@@ -1456,6 +1481,8 @@ void loop()
             front_distance_down_right = 150;
         if (front_distance_down_right > 250)
             front_distance_down_right = 0;
+  */
+        read_down_IR();
         sensorValue = analogRead(OPPONENT_SENSOR_LEFT);
         front_distance_up_left = (front_distance_up_left + (convert_medIR_value(sensorValue)) * 2) / 3;
         sensorValue = analogRead(OPPONENT_SENSOR_RIGHT);
@@ -2718,7 +2745,7 @@ struct Point estimate_center(struct robot *my_robot)
 #define DETECTION_LIMIT 37
     struct Point result;
 
-    int sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
+/*    int sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
     //front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
     front_distance_down_middle = (front_distance_down_middle + (convert_medIR_value(sensorValue)) * 2) / 3;
     if (front_distance_down_middle > 80 || front_distance_down_middle < 0)
@@ -2738,6 +2765,9 @@ struct Point estimate_center(struct robot *my_robot)
         front_distance_down_right = 80;
     if (front_distance_down_right > 80)
         front_distance_down_right = 80;
+*/
+
+    read_down_IR();
 
 
     if ((front_distance_down_right < DETECTION_LIMIT) && (front_distance_down_middle > DETECTION_LIMIT)
@@ -2793,6 +2823,33 @@ signed long convert_ticks2dist(signed long ticks)
 {
     return (ticks / TICK_PER_MM_RIGHT);
 }
+
+void read_down_IR(void)
+{
+    int sensorValue = 0;
+
+    sensorValue = analogRead(PAWN_SENSOR_MIDDLE);
+    //front_distance_down_middle = (front_distance_down_middle + (convert_longIR_value(sensorValue)) * 2) / 3;
+    front_distance_down_middle = (front_distance_down_middle + (convert_medIR_value(sensorValue)) * 1) / 2;
+    if (front_distance_down_middle > 80 || front_distance_down_middle < 0)
+        front_distance_down_middle = 80;
+
+    sensorValue = analogRead(PAWN_SENSOR_LEFT);
+    //front_distance_down_left = (front_distance_down_left + (convert_longIR_value(sensorValue)) * 2) / 3;
+    front_distance_down_left = (front_distance_down_left + (convert_medIR_value(sensorValue)) * 1) / 2;
+    if (front_distance_down_left < 0)
+        front_distance_down_left = 80;
+    if (front_distance_down_left > 80)
+        front_distance_down_left = 80;
+    sensorValue = analogRead(PAWN_SENSOR_RIGHT);
+    //front_distance_down_right = (front_distance_down_right + (convert_longIR_value(sensorValue)) * 2) / 3;
+    front_distance_down_right = (front_distance_down_right + (convert_medIR_value(sensorValue)) * 1) / 2;
+    if (front_distance_down_right < 0)
+        front_distance_down_right = 80;
+    if (front_distance_down_right > 80)
+        front_distance_down_right = 80;
+}
+
 
 /********************/
 /* MOTORS FUNCTIONS */
@@ -2947,7 +3004,8 @@ int check_point_in_map(struct Point *my_point)
     int error = 0;                                         // Outside the map
     if ((my_point->x > (1500 - BORDER_LIMIT)) || (my_point->x < (-1500 + BORDER_LIMIT)) || (my_point->y > (2100 - BORDER_LIMIT))
         || (my_point->y < BORDER_LIMIT)
-        || ((my_point->y > 1800) && (((my_point->x > 350) && (my_point->x < 1150)) || ((my_point->x < -350) && (my_point->x > -1150)))))
+        || ((my_point->y > 1800) && (((my_point->x > 350) && (my_point->x < 1450)) || ((my_point->x < -350) && (my_point->x > -1450))))
+        || ((my_point->y < 450) && ((my_point->x > 950) || (my_point->x < -950))))
         error = 0;
     else
         error = 1;
@@ -3023,10 +3081,12 @@ struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
         /* Returns 0 if not in our color, 1 else */
 int find_pawn_in_our_color(struct Point *pawn, struct Point tab[], int size)
 {
+#define COLOR_LIMIT 65
     //int result = 0;
     //double best_distance = 99999.9;
     for (int i = 0; i < size; i++) {
-        if ((pawn->x < (tab[i].x + 60)) && (pawn->x > (tab[i].x - 60)) && (pawn->y < (tab[i].y + 60)) && (pawn->y > (tab[i].y - 60))) {
+        if ((pawn->x < (tab[i].x + COLOR_LIMIT)) && (pawn->x > (tab[i].x - COLOR_LIMIT)) && (pawn->y < (tab[i].y + COLOR_LIMIT))
+            && (pawn->y > (tab[i].y - COLOR_LIMIT))) {
             return 1;
         }
     }
@@ -3061,16 +3121,16 @@ void reinit_y_axis(void)
         /**********************************/
 void PAWN_grip_pawn(void)
 {
-    gripServo_right.write(60);
-    gripServo_left.write(130);
+    gripServo_right.write(55);
+    gripServo_left.write(135);
 }
 
 void PAWN_release_pawn(void)
 {
     //gripServo_right.write(91);
     //gripServo_left.write(100);
-    gripServo_right.write(121);
-    gripServo_left.write(70);
+    gripServo_right.write(116);
+    gripServo_left.write(75);
 }
 
 void PAWN_go_up(void)
@@ -3095,15 +3155,37 @@ void PAWN_go_up(void)
 void PAWN_go_down(void)
 {
     int buttonState = 0;
+    int error = 0;
     // Start going up
     //digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_DOWN);
     //analogWrite(LIFT_MOTOR_PWM, 100);
-    lifter_servo.write(68);
+
+    if (digitalRead(LIFT_SWITCH_UP) == 0) {
+        lifter_servo.write(65);
+        delay(200);
+    } else {
+        lifter_servo.write(65);
+        delay(20);
+    }
     // Stop when the microswitch in activated
     buttonState = digitalRead(LIFT_SWITCH_DOWN);
     while (buttonState == 1) {
         delay_ms(12);
+        buttonState = digitalRead(LIFT_SWITCH_UP);
+        if ((buttonState == 0) && (error == 0)) {
+            set_new_command(&bot_command_delta, -30);
+            lifter_servo.write(112);
+            delay(150);
+            error = 1;
+        } else if ((buttonState == 0) && (error == 1)) {
+            set_new_command(&bot_command_delta, -20);
+            lifter_servo.write(70);
+            delay(150);
+            error = 0;
+        }
+
         buttonState = digitalRead(LIFT_SWITCH_DOWN);
+
     }
     // Stop
     lifter_servo.write(90);
