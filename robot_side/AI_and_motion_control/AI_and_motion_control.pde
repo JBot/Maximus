@@ -24,6 +24,7 @@ Clock frequency : 16,00 MHz
  *****************************************************/
 // Arduino specific includes
 #include <Servo.h>
+#include <Wire.h>
 
 // Other includes
 #include <avr/io.h>
@@ -81,6 +82,9 @@ void delay_ms(uint16_t millis)
 #define AVOIDING2               7
 #define FIN_MATCH               8
 #define INTERMEDIATE_RELEASE    9
+#define TAKE_KING1              10
+#define TAKE_KING2              11
+#define TAKE_KING3              12
 
 // I/Os definition
 //#define INPUT_MOTION_PIN        2
@@ -216,6 +220,10 @@ volatile int front_distance_down_right = 50;
 volatile int pawn_distance = 30;
 int front_distance_up_left = 50;
 int front_distance_up_right = 50;
+int side_king_sensor = 60;
+int side_king_sensor2 = 0;
+
+int side_sensor_on = 1;
 
 int prev_front_distance = 50;
 
@@ -224,6 +232,7 @@ char has_pawn = NO_PAWN;
 
 struct Point red_points[18];
 struct Point blue_points[18];
+struct Point green_points[10];
 
 struct Point *my_color_points;
 
@@ -262,6 +271,11 @@ int nb_pawn_in_case = 0;
 double x_topawn = 0;
 double y_topawn = 0;
 int sens = 0;
+int stack_to_do = 0;
+
+int number_of_king_detected = 0;
+struct Point king_points[10];                              // Only 2 values are needed, put to 10 to be sure not to make bug if we write to much values
+
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -583,6 +597,8 @@ void setup()
     Serial2.begin(38400);
     Serial3.begin(57600);                                  // Color module
 
+    Wire.begin();
+
     // Timer(s)/Counter(s) Interrupt(s) initialization
     TIMSK1 |= 0x01;
     TIFR1 |= 0x01;
@@ -635,6 +651,8 @@ void setup()
 /*
 while(1) {
 
+
+  
   if(Serial.available()) {
   char blabla = Serial.read();
   switch(blabla) {
@@ -653,8 +671,24 @@ while(1) {
     case 'X' :
       set_new_command(&bot_command_delta, -1000);
       break;
+    case 'p' :
+      PAWN_release_pawn();
+      break;
+    case 'o' :
+      PAWN_grip_pawn();
+      break;
+    case 'm' :
+      PAWN_go_down();
+      break;
+    case 'l' :
+      PAWN_go_up();
+      break;
+
   }
   }
+
+               
+
   //set_new_command(&bot_command_delta, 1256);
   delay(30);
 
@@ -667,6 +701,8 @@ while(1) {
 
 
     int sensorValue = 0;
+
+
 
 
 read_down_IR();
@@ -682,14 +718,26 @@ read_down_IR();
                 pawn_distance = 30;
 
 
+  sensorValue = analogRead(7);
+  side_king_sensor2 = (side_king_sensor2 + (convert_longIR_value(sensorValue)) * 4) / 5;
+  if (side_king_sensor2 > 150 || side_king_sensor2 < 0)
+        side_king_sensor2 = 150;
+
+
+
+
 	   Serial.print("left : ");
 	   Serial.print(front_distance_down_left);
 	   Serial.print(" middle : ");
 	   Serial.print(front_distance_down_middle);
 	   Serial.print(" right : ");
 	   Serial.print(front_distance_down_right);
-	   Serial.print(" pawn : ");
-	   Serial.println(pawn_distance);
+	   Serial.print(" SIDE : ");
+	   Serial.print(side_king_sensor);
+  Serial.print(" SIDE2 : ");
+  Serial.println(side_king_sensor2);
+
+
 
 if(front_distance_down_right < 30)
 Serial.println("RIGHT");
@@ -700,6 +748,7 @@ Serial.println("LEFT");
 if(front_distance_down_middle < 30)
 Serial.println("MIDDLE");
 
+//delay(2);
 
 }
 */
@@ -753,6 +802,17 @@ Serial.println("MIDDLE");
         //Serial.print(color_serial_in, BYTE);
     }
 
+/*  // step 1: instruct sensor to read echoes
+  Wire.beginTransmission(112); // transmit to device #112 (0x70)
+                               // the address specified in the datasheet is 224 (0xE0)
+                               // but i2c adressing uses the high 7 bits so it's 112
+  Wire.send(0x00);             // sets register pointer to the command register (0x00)  
+  Wire.send(0x50);             // command sensor to measure in "inches" (0x50) 
+                               // use 0x51 for centimeters
+                               // use 0x52 for ping microseconds
+  Wire.endTransmission();      // stop transmitting
+*/
+
     time_in_match = 0;
 
     Serial.println("START");
@@ -769,6 +829,8 @@ Serial.println("MIDDLE");
 void loop()
 {
     // Place your code here
+    int sensorValue = 0;
+
 /*
     if (global_time_counter == 8) {
         if (transmit_status == 1) {
@@ -780,16 +842,100 @@ void loop()
     }
 */
 
-    if (global_time_counter > 10) {
+    if (global_time_counter > 100) {
         //Serial.println("Alive");
         global_time_counter = 0;
     }
 
     delay_ms(20);
+/*
+if((global_time_counter % 2) == 1) {
+// step 3: instruct sensor to return a particular echo reading
+  Wire.beginTransmission(112); // transmit to device #112
+  Wire.send(0x02);             // sets register pointer to echo #1 register (0x02)
+  Wire.endTransmission();      // stop transmitting
+
+  // step 4: request reading from sensor
+  Wire.requestFrom(112, 2);    // request 2 bytes from slave device #112
+
+  // step 5: receive reading from sensor
+  if(2 <= Wire.available())    // if two bytes were received
+  {
+    side_king_sensor = Wire.receive();  // receive high byte (overwrites previous reading)
+    side_king_sensor = side_king_sensor << 8;    // shift high byte to be high 8 bits
+    side_king_sensor |= Wire.receive(); // receive low byte as lower 8 bits
+    side_king_sensor = side_king_sensor * 2;
+   Serial.print(" SIDE : ");
+   Serial.println(side_king_sensor);
+  }
+  
+
+
+
+  // step 1: instruct sensor to read echoes
+  Wire.beginTransmission(112); // transmit to device #112 (0x70)
+                               // the address specified in the datasheet is 224 (0xE0)
+                               // but i2c adressing uses the high 7 bits so it's 112
+  Wire.send(0x00);             // sets register pointer to the command register (0x00)  
+  Wire.send(0x50);             // command sensor to measure in "inches" (0x50) 
+                               // use 0x51 for centimeters
+                               // use 0x52 for ping microseconds
+  Wire.endTransmission();      // stop transmitting
+}
+*/
+
+
+    if ((side_sensor_on == 1) && (fabs(maximus.theta) > PI / 2 - 0.12) && (fabs(maximus.theta) < PI / 2 + 0.12)
+        && (bot_command_alpha.state == COMMAND_DONE)) {
+
+        sensorValue = analogRead(7);
+        side_king_sensor = (side_king_sensor + (convert_longIR_value(sensorValue)) * 4) / 5;
+        if (side_king_sensor > 150 || side_king_sensor < 0)
+            side_king_sensor = 150;
+
+        //Serial.print(" SIDE2 : ");
+        //Serial.println(side_king_sensor);
+
+        if (side_king_sensor < 50) {
+            side_king_sensor2++;
+
+            if (side_king_sensor2 > 1) {
+                release_point = find_nearest(&maximus, green_points, 10);
+                if (side_king_sensor2 > 0) {
+                    if (king_points[number_of_king_detected - 1].y == release_point.y) {        // Pion deja présent dans la liste
+                    } else {
+
+                        king_points[number_of_king_detected].x = release_point.x;
+                        king_points[number_of_king_detected].y = release_point.y;
+                        number_of_king_detected++;         // We have seen 1 more king
+                        side_king_sensor2 = 0;
+
+                        Serial.print("New king : ");
+                        Serial.print(king_points[number_of_king_detected - 1].x);
+                        Serial.print(" ");
+                        Serial.println(king_points[number_of_king_detected - 1].y);
+                    }
+                } else {
+                    king_points[number_of_king_detected].x = release_point.x;
+                    king_points[number_of_king_detected].y = release_point.y;
+                    number_of_king_detected++;             // We have seen 1 more king
+                    side_king_sensor2 = 0;
+
+                    Serial.print("New king : ");
+                    Serial.print(king_points[number_of_king_detected - 1].x);
+                    Serial.print(" ");
+                    Serial.println(king_points[number_of_king_detected - 1].y);
+                }
+            }
+        } else {
+            side_king_sensor2 = 0;
+        }
+
+    }
 
     global_time_counter++;
 
-    int sensorValue = 0;
+
 
 
 
@@ -1044,26 +1190,21 @@ void loop()
 
                 if ((pawn_distance < 5)) {                 //|| (digitalRead(INPUT_MOTION_PIN) && (go_grab_pawn == 2)) ) {
                     stop_robot();
-                    Serial.print("Tleft : ");
-                    Serial.print(front_distance_down_left);
-                    Serial.print(" Tmiddle : ");
-                    Serial.print(front_distance_down_middle);
-                    Serial.print(" Tright : ");
-                    Serial.println(front_distance_down_right);
                     go_grab_pawn = 0;
                     PAWN_release_pawn();
                     PAWN_go_down();
                     PAWN_grip_pawn();
                     //PAWN_go_up();
                     //delay_ms(1000);
-                    if (pawn_stack == 12) {                // Stacking pawn
+                    if (pawn_stack < stack_to_do) {        // Stacking pawn
                         PAWN_go_up();
-                        pawn_stack = 1;
+                        pawn_stack++;
                         delta_motor.max_speed = DELTA_MAX_SPEED;
                         alpha_motor.max_speed = ALPHA_MAX_SPEED;
                         has_pawn = TURNING_DIRECTION;
                     } else {                               // Go put the pawn on the right space
                         has_pawn = TAKE_PAWN;
+                        pawn_stack = 0;
                     }
                     //PAWN_release_pawn();
                     //delay_ms(3000);
@@ -1144,10 +1285,13 @@ void loop()
 
             } else {
                 Serial.println("Not anymore in trajectory");
-                stop_robot();
+                //stop_robot();
+
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 alpha_motor.max_speed = ALPHA_MAX_SPEED;
-                has_pawn = TURNING_DIRECTION;
+                set_new_command(&bot_command_delta, 10);
+                goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+                has_pawn = NO_PAWN;
                 //delay(400);
 
 
@@ -1203,14 +1347,16 @@ void loop()
                         PAWN_grip_pawn();
                         //PAWN_go_up();
                         //delay_ms(1000);
-                        if (pawn_stack == 12) {            // Stacking pawn
+                        if (pawn_stack < stack_to_do) {    // Stacking pawn
+                            delay(50);
                             PAWN_go_up();
-                            pawn_stack = 1;
+                            pawn_stack++;
                             delta_motor.max_speed = DELTA_MAX_SPEED;
                             alpha_motor.max_speed = ALPHA_MAX_SPEED;
                             has_pawn = TURNING_DIRECTION;
                         } else {                           // Go put the pawn on the right space
                             has_pawn = TAKE_PAWN;
+                            pawn_stack = 0;
                         }
                         //PAWN_release_pawn();
                         //delay_ms(3000);
@@ -1343,36 +1489,40 @@ void loop()
                 //MOTION_set_alpha(angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG);
                 //delay_ms(300);
 
-                the_point.x = maximus.pos_X;
-                the_point.y = maximus.pos_Y;
-
-                if (trajectory_intersection_pawn(&the_point, &way_points[way_point_index - 1], &release_point, 100 + 130) == 1) {       // pawn is in the trajectory
-                    // Compute an intermediate way_point
-                    Serial.print("In trajectory ");
-
-                    has_pawn = AVOIDING1;
-
-                    avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
-                    double theangle = angle_coord(&maximus, release_point.x, release_point.y);
-
-                    if (theangle < 0) {                    // Avoid by left
-                        set_new_command(&bot_command_alpha, (theangle + PI / 2) * RAD2DEG);
-                    } else {                               // Avoid by right
-                        set_new_command(&bot_command_alpha, (theangle - PI / 2) * RAD2DEG);
-                    }
-
+                if ((nb_pawn_in_case == 2) && (number_of_king_detected > 0)) {  // Si on a trouvé un roi et qu'on a deja posé les 2 premiers pions de sécurité
+                    if (king_points[number_of_king_detected - 1].x < 0)
+                        goto_xy(-800, king_points[number_of_king_detected - 1].y);
+                    else
+                        goto_xy(800, king_points[number_of_king_detected - 1].y);
+                    number_of_king_detected--;
+                    has_pawn = TAKE_KING1;
                 } else {
-                    Serial.println("Not in trajectory");
-                    set_new_command(&bot_command_alpha,
-                                    (angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG));
-                    //Serial.print("Turning : ");
-                    //Serial.println(angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG);
-                    //Serial.println(maximus.theta * RAD2DEG);
-                    has_pawn = TURNING_DIRECTION;
-                    //delay_ms(1000);
-                    //delay_ms(500);
-                }
 
+                    the_point.x = maximus.pos_X;
+                    the_point.y = maximus.pos_Y;
+
+                    if (trajectory_intersection_pawn(&the_point, &way_points[way_point_index - 1], &release_point, 100 + 130) == 1) {   // pawn is in the trajectory
+                        // Compute an intermediate way_point
+                        Serial.print("In trajectory ");
+
+                        has_pawn = AVOIDING1;
+
+                        avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                        double theangle = angle_coord(&maximus, release_point.x, release_point.y);
+
+                        if (theangle < 0) {                // Avoid by left
+                            set_new_command(&bot_command_alpha, (theangle + PI / 2) * RAD2DEG);
+                        } else {                           // Avoid by right
+                            set_new_command(&bot_command_alpha, (theangle - PI / 2) * RAD2DEG);
+                        }
+
+                    } else {
+                        Serial.println("Not in trajectory");
+                        set_new_command(&bot_command_alpha,
+                                        (angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG));
+                        has_pawn = TURNING_DIRECTION;
+                    }
+                }
                 //has_pawn = TURNING_DIRECTION;
                 break;
             case TURNING_DIRECTION:
@@ -1405,6 +1555,50 @@ void loop()
                 delta_motor.max_speed = 1;
                 alpha_motor.max_speed = 1;
                 break;
+            case TAKE_KING1:
+
+                goto_xy(king_points[number_of_king_detected].x, king_points[number_of_king_detected].y);
+
+                //  goto_xy(king_points[number_of_king_detected].x-50, king_points[number_of_king_detected].y);
+
+                has_pawn = TAKE_KING2;
+                break;
+            case TAKE_KING2:
+
+                PAWN_release_pawn();
+                PAWN_go_down();
+                PAWN_grip_pawn();
+
+                set_new_command(&bot_command_delta, (-400));
+                PAWN_go_up();
+
+                has_pawn = TAKE_KING3;
+                break;
+            case TAKE_KING3:
+                if (number_of_king_detected > 0) {         // Si il reste encore un roi de detecté
+                    // On va vite poser le premier roi sur le premier pion que l'on a placé
+                    x_topawn = color * 515;
+                    y_topawn = 165;
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                    Serial.println("SUR le premier pion");
+
+                    has_pawn = GOTO_RELEASE;
+
+                } else {                                   // On va sur la 2eme ligne pour essayer de trouver les 2 autres pions
+                    stack_to_do = 1;                       // Put to 2
+                    set_new_command(&bot_command_alpha,
+                                    (angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG));
+                    has_pawn = TURNING_DIRECTION;
+
+                }
+
+                break;
+
             default:                                      // has no pawn => Move to the next position
                 if (turn_counter < 20) {
                     if (way_point_index >= 8) {
@@ -2241,6 +2435,32 @@ void init_color_points(void)
     blue_points[16].y = 175 + 350 + 350 + 350 + 350 + 350;
     blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
 
+    /* Green points */
+    green_points[0].x = -1170;
+    green_points[1].x = -1170;
+    green_points[2].x = -1170;
+    green_points[0].y = 690;
+    green_points[1].y = 970;
+    green_points[2].y = 1250;
+
+    green_points[3].x = -1170;
+    green_points[4].x = -1170;
+    green_points[5].x = 1170;
+    green_points[3].y = 1530;
+    green_points[4].y = 1810;
+    green_points[5].y = 690;
+
+    green_points[6].x = 1170;
+    green_points[7].x = 1170;
+    green_points[8].x = 1170;
+    green_points[6].y = 970;
+    green_points[7].y = 1250;
+    green_points[8].y = 1530;
+
+    green_points[9].x = 1170;
+    green_points[9].y = 1810;
+
+
 }
 
 void init_way_points(void)
@@ -2249,7 +2469,7 @@ void init_way_points(void)
     way_points[0].y = 200;
     way_points[1].x = color * 800;
     way_points[1].y = 450;
-    way_points[2].x = color * 700;
+    way_points[2].x = color * 780;
     way_points[2].y = 1500;
 
     way_points[3].x = color * 350;
@@ -3121,8 +3341,10 @@ void reinit_y_axis(void)
         /**********************************/
 void PAWN_grip_pawn(void)
 {
-    gripServo_right.write(55);
-    gripServo_left.write(135);
+    //gripServo_right.write(55);
+    //gripServo_left.write(135);
+    gripServo_right.write(67);
+    gripServo_left.write(113);
 }
 
 void PAWN_release_pawn(void)
@@ -3139,11 +3361,11 @@ void PAWN_go_up(void)
     // Start going up
     //digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_UP);
     //analogWrite(LIFT_MOTOR_PWM, 100);
-    lifter_servo.write(112);
+    lifter_servo.write(117);
     // Stop when the microswitch in activated
     buttonState = digitalRead(LIFT_SWITCH_UP);
     while (buttonState == 1) {
-        delay_ms(15);
+        delay_ms(13);
         buttonState = digitalRead(LIFT_SWITCH_UP);
     }
     // Stop
@@ -3161,10 +3383,10 @@ void PAWN_go_down(void)
     //analogWrite(LIFT_MOTOR_PWM, 100);
 
     if (digitalRead(LIFT_SWITCH_UP) == 0) {
-        lifter_servo.write(65);
+        lifter_servo.write(60);
         delay(200);
     } else {
-        lifter_servo.write(65);
+        lifter_servo.write(60);
         delay(20);
     }
     // Stop when the microswitch in activated
@@ -3174,12 +3396,12 @@ void PAWN_go_down(void)
         buttonState = digitalRead(LIFT_SWITCH_UP);
         if ((buttonState == 0) && (error == 0)) {
             set_new_command(&bot_command_delta, -30);
-            lifter_servo.write(112);
+            lifter_servo.write(117);
             delay(150);
             error = 1;
         } else if ((buttonState == 0) && (error == 1)) {
             set_new_command(&bot_command_delta, -20);
-            lifter_servo.write(70);
+            lifter_servo.write(75);
             delay(150);
             error = 0;
         }
