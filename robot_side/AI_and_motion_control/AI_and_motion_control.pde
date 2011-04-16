@@ -85,6 +85,9 @@ void delay_ms(uint16_t millis)
 #define TAKE_KING1              10
 #define TAKE_KING2              11
 #define TAKE_KING3              12
+#define AVOIDING0               13
+
+
 
 // I/Os definition
 //#define INPUT_MOTION_PIN        2
@@ -124,10 +127,11 @@ void delay_ms(uint16_t millis)
 #define BEACON_EAST             2
 #define BEACON_WEST             3
 
-#define ALPHA_MAX_SPEED         20000                      //24000                      //25000//13000                      // 9000
+#define ALPHA_MAX_SPEED         35000                      //24000                      //25000//13000                      // 9000
 #define ALPHA_MAX_ACCEL         300
 #define ALPHA_MAX_DECEL         2500
-#define DELTA_MAX_SPEED         40000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED         60000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED_BACK    30000                      //45000                      //50000//37000
 #define DELTA_MAX_ACCEL         900                        //600
 #define DELTA_MAX_DECEL         4000                       //1800
 
@@ -243,6 +247,9 @@ struct Point *my_color_points;
 struct Point way_points[20];
 int way_point_index = 0;
 
+struct Point placed_pawn[10];
+int placed_pawn_index = 0;
+
 struct Point release_point;
 struct Point my_test_point;
 struct Point the_point;
@@ -284,6 +291,7 @@ double current_delta_speed = 0;
 
 struct Point prev_position;
 
+double my_angle = 0.0;
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -634,6 +642,7 @@ void setup()
     init_color_points();                                   // Init the color field
     init_way_points();
 
+    init_placed_pawns_for_test();
 
     //PAWN_go_down();
 
@@ -862,7 +871,7 @@ void loop()
         //Serial.print(" SIDE2 : ");
         //Serial.println(side_king_sensor);
 
-        if (side_king_sensor < 35) {
+        if (side_king_sensor < 45) {
             side_king_sensor2++;
 
             if (side_king_sensor2 > 1) {
@@ -984,8 +993,6 @@ void loop()
 
 
         }
-
-
 #else
 //        if (((front_distance_down_right < 30) || ((front_distance_down_middle < 33) && (front_distance_down_middle > 5))
 //             || (front_distance_down_left < 30)) && (has_pawn == NO_PAWN) && (way_point_index > 1) && (sensor_off == 0)) {
@@ -1277,8 +1284,9 @@ void loop()
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 alpha_motor.max_speed = ALPHA_MAX_SPEED;
                 set_new_command(&bot_command_delta, 10);
-                goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+                //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
                 has_pawn = NO_PAWN;
+                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &way_points[way_point_index - 1]);
                 //delay(400);
 
 
@@ -1395,7 +1403,7 @@ void loop()
                     x_topawn = color * 875;
                     y_topawn = 1865;
 
-                    goto_xy(color * 800, 1600);
+                    goto_xy(color * 750, 1600);
 
                     Serial.println("deuxieme pion");
 
@@ -1422,6 +1430,66 @@ void loop()
                     has_pawn = INTERMEDIATE_RELEASE;
                     break;
 */
+
+                case 3:
+                    x_topawn = (-1) * color * (525);
+                    y_topawn = 525;
+
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                    Serial.println("quatrieme pion");
+
+                    has_pawn = GOTO_RELEASE;
+                    break;
+
+                case 4:
+                    x_topawn = (-1) * color * (525);
+                    y_topawn = 1225;
+
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                    Serial.println("cinquieme pion");
+
+                    has_pawn = GOTO_RELEASE;
+                    break;
+                case 5:
+                    x_topawn = (-1) * color * (525);
+                    y_topawn = 1225;
+
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                    Serial.println("sixieme pion");
+
+                    has_pawn = GOTO_RELEASE;
+                    break;
+                case 6:
+                    x_topawn = (-1) * color * (525);
+                    y_topawn = 525;
+
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                    Serial.println("septieme pion");
+
+                    has_pawn = GOTO_RELEASE;
+                    break;
+
+
                 default:
                     release_point = find_nearest(&maximus, my_color_points, 18);
                     x_topawn = release_point.x;
@@ -1465,6 +1533,7 @@ void loop()
                 break;
             case GOTO_RELEASE:                            // The robot have a pawn and is on his release point
                 PAWN_release_pawn();
+                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                 set_new_command(&bot_command_delta, (-190));
 #ifdef NO_SENSORS
                 PAWN_go_up();
@@ -1477,7 +1546,7 @@ void loop()
                 break;
 
             case GO_BACK:                                 // The robot release the pawn and go back to let it in position
-
+                delta_motor.max_speed = DELTA_MAX_SPEED;
                 if ((nb_pawn_in_case == 2) && (number_of_king_detected > 0)) {  // Si on a trouvé un roi et qu'on a deja posé les 2 premiers pions de sécurité
                     if (king_points[number_of_king_detected - 1].x < 0)
                         goto_xy(-800, king_points[number_of_king_detected - 1].y);
@@ -1493,18 +1562,36 @@ void loop()
                     if (trajectory_intersection_pawn(&the_point, &way_points[way_point_index - 1], &release_point, 100 + 120) == 1) {   // pawn is in the trajectory
                         // Compute an intermediate way_point
                         Serial.print("In trajectory ");
+                        if (((release_point.x - way_points[way_point_index - 1].x) * (release_point.x - way_points[way_point_index - 1].x) +
+                             (release_point.y - way_points[way_point_index - 1].y) * (release_point.y - way_points[way_point_index - 1].y)) <
+                            (220 * 220)) {
+/*
+                        goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+                        Serial.print(".Go to :");
+                        Serial.print(way_points[way_point_index].x);
+                        Serial.print(" ");
+                        Serial.println(way_points[way_point_index].y);
+                        way_point_index++;
 
                         has_pawn = AVOIDING1;
+                        */
+                            way_point_index++;
+                            set_new_command(&bot_command_alpha,
+                                            (angle_coord(&maximus, way_points[way_point_index - 1].x, way_points[way_point_index - 1].y) * RAD2DEG));
+                            has_pawn = TURNING_DIRECTION;
 
-                        avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
-                        double theangle = angle_coord(&maximus, release_point.x, release_point.y);
+                        } else {
+                            has_pawn = AVOIDING1;
 
-                        if (theangle < 0) {                // Avoid by left
-                            set_new_command(&bot_command_alpha, (theangle + PI / 2) * RAD2DEG);
-                        } else {                           // Avoid by right
-                            set_new_command(&bot_command_alpha, (theangle - PI / 2) * RAD2DEG);
+                            avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                            double theangle = angle_coord(&maximus, release_point.x, release_point.y);
+
+                            if (theangle < 0) {            // Avoid by left
+                                set_new_command(&bot_command_alpha, (theangle + PI / 2) * RAD2DEG);
+                            } else {                       // Avoid by right
+                                set_new_command(&bot_command_alpha, (theangle - PI / 2) * RAD2DEG);
+                            }
                         }
-
                     } else {
                         Serial.println("Not in trajectory");
                         set_new_command(&bot_command_alpha,
@@ -1524,8 +1611,19 @@ void loop()
                 Serial.println(way_points[way_point_index - 1].y);
                 has_pawn = NO_PAWN;
                 break;
+            case AVOIDING0:
 
+                avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                my_angle = angle_coord(&maximus, release_point.x, release_point.y);
 
+                if (my_angle < 0) {                        // Avoid by left
+                    set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
+                } else {                                   // Avoid by right
+                    set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                }
+
+                has_pawn = AVOIDING1;
+                break;
             case AVOIDING1:
 
                 avoid_object(&maximus, &release_point, avoid_radius + 40);
@@ -1591,12 +1689,15 @@ void loop()
 
             default:                                      // has no pawn => Move to the next position
                 if (turn_counter < 20) {
-                    if (way_point_index >= 13) {
+                    //if (way_point_index >= 13) {
+                    if (way_point_index >= 4) {
                         way_point_index = 1;
                         turn_counter++;
                     }
+                    //goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
 
-                    goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &way_points[way_point_index]);
+
                     Serial.print(".Go to :");
                     Serial.print(way_points[way_point_index].x);
                     Serial.print(" ");
@@ -1998,6 +2099,7 @@ void init_color_points(void)
 void init_way_points(void)
 {
 #ifdef NO_SENSORS
+/*
     way_points[0].x = color * 1050;
     way_points[0].y = 200;
     way_points[1].x = color * 700;
@@ -2030,6 +2132,21 @@ void init_way_points(void)
 
     way_points[13].x = (-1) * color * 750;
     way_points[13].y = 350;
+*/
+    way_points[0].x = color * 1050;
+    way_points[0].y = 200;
+    way_points[1].x = color * 525;
+    way_points[1].y = 525;
+    way_points[2].x = color * 875;
+    way_points[2].y = 1575;
+
+    way_points[3].x = color * 175;
+    way_points[3].y = 1575;                                //1400;
+    way_points[4].x = color * 525;
+    way_points[4].y = 525;
+    way_points[5].x = 0;
+    way_points[5].y = 1050;
+
 
 #else
     way_points[0].x = color * 1050;
@@ -2123,6 +2240,16 @@ void init_PAWN_status(void)
 
 }
 
+void init_placed_pawns_for_test(void)
+{
+    placed_pawn[0].x = -525;
+    placed_pawn[0].y = 875;
+
+    placed_pawn[1].x = -525;
+    placed_pawn[1].y = 1575;
+
+    placed_pawn_index = 2;
+}
 
 
 
@@ -2420,8 +2547,8 @@ long compute_position_PID(struct RobotCommand *cmd, struct motor *used_motor)
     if (tmp < -(used_motor->max_speed))
         tmp = -(used_motor->max_speed);
 
-    if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 2)
-        && (abs(errDif) < 2)) {
+    if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 3)
+        && (abs(errDif) < 3)) {                            // 2 before
         cmd->state = COMMAND_DONE;
     }
 
@@ -2898,28 +3025,70 @@ struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
     result.y = 875;
     double best_distance = 99999.9;
     for (int i = 0; i < size; i++) {
-      if( color == 1 ) {
-        if( my_robot->pos_X < tab[i].x) {
-          double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
-          if (distance < best_distance) {
-            best_distance = distance;
-            result.x = tab[i].x;
-            result.y = tab[i].y;
-          }
+        if (color == 1) {
+            if (my_robot->pos_X < tab[i].x) {
+                double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    result.x = tab[i].x;
+                    result.y = tab[i].y;
+                }
+            }
+        } else {
+            if (my_robot->pos_X > tab[i].x) {
+                double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    result.x = tab[i].x;
+                    result.y = tab[i].y;
+                }
+            }
         }
-      }
-      else {
-        if( my_robot->pos_X > tab[i].x) {
-          double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
-          if (distance < best_distance) {
-            best_distance = distance;
-            result.x = tab[i].x;
-            result.y = tab[i].y;
-          }
-        }
-      }
     }
     return result;
+}
+
+void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int size, struct Point *dest)
+{
+    struct Point result, tmp;
+    int result2 = 0;
+    result.x = color * 875;
+    result.y = 875;
+    tmp.x = my_robot->pos_X;
+    tmp.y = my_robot->pos_Y;
+    double best_distance = 99999.9;
+    for (int i = 0; i < size; i++) {
+        if (trajectory_intersection_pawn(&tmp, dest, &tab[i], 230) == 1) {
+            double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
+            if (distance < best_distance) {
+                best_distance = distance;
+                result.x = tab[i].x;
+                result.y = tab[i].y;
+                result2 = 1;
+            }
+        }
+
+    }
+
+    if (result2 == 1) {
+        double ang, dist;
+
+        release_point.x = result.x;
+        release_point.y = result.y;
+
+        ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
+        set_new_command(&bot_command_alpha, ang);
+
+        dist = distance_coord(&maximus, result.x, result.y) - 270;      // TO REDUCE LATER
+        set_new_command(&prev_bot_command_delta, dist);
+        bot_command_delta.state = WAITING_BEGIN;
+        //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+        has_pawn = AVOIDING0;
+    } else {
+        goto_xy(dest->x, dest->y);
+        //has_pawn = ;
+    }
+
 }
 
         /* Returns 0 if not in our color, 1 else */

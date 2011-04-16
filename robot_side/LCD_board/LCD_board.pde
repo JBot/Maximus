@@ -96,7 +96,7 @@ void loop()
     }
 
     delay(10);
-    if (digitalRead(START_PIN) == 0) {
+    if (digitalRead(START_PIN) == 1) {
         start_robot = 1;
     } else {
         start_robot = 0;
