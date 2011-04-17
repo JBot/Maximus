@@ -57,7 +57,11 @@ void setup()
     lcd.printIn("Choose color ...");
 
     Serial.begin(57600);
-
+/*
+    analogWrite(9, 255);
+    analogWrite(10, 0);
+    analogWrite(11, 0);
+  */  
 }
 
 void loop()
@@ -86,6 +90,16 @@ void loop()
                             lcd.cursorTo(2, 5);            //line=2, x=5
                             lcd.printIn(msgs[key]);
                             selected_color = oldcommand;
+                            /*if(selected_color == 1) {
+                            analogWrite(9, 0);
+                            analogWrite(10, 0);
+                            analogWrite(11, 255);
+                            }
+                            else {
+                            analogWrite(9, 0);
+                            analogWrite(10, 255);
+                            analogWrite(11, 0);  
+                            }*/
                         }
                     }
                 }
