@@ -87,6 +87,7 @@ void delay_ms(uint16_t millis)
 #define TAKE_KING3              12
 #define AVOIDING0               13
 #define AVOIDING_OPP1           14
+#define AVOIDING_OPP2           15
 
 
 // I/Os definition
@@ -132,8 +133,8 @@ void delay_ms(uint16_t millis)
 #define ALPHA_MAX_DECEL         3500                       //2500
 #define DELTA_MAX_SPEED         50000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK    30000                      //45000                      //50000//37000
-#define DELTA_MAX_ACCEL         900                        //600
-#define DELTA_MAX_DECEL         4000                       //1800
+#define DELTA_MAX_ACCEL         1000//900                        //600
+#define DELTA_MAX_DECEL         10000//4000                       //1800
 
 
 #define NO_SENSORS
@@ -298,7 +299,7 @@ double current_delta_speed = 0;
 struct Point prev_position;
 
 double my_angle = 0.0;
-
+int have_king = 0;
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -744,8 +745,7 @@ void setup()
             side_king_sensor2 = side_king_sensor2 << 8;
             side_king_sensor2 |= Wire.receive();
         }
-
-        read_down_IR();
+//        read_down_IR();
 
         sense_opponent_ir();
 
@@ -761,12 +761,12 @@ void setup()
         //      side_king_sensor2 = 150;
 
 
-        Serial.print("left : ");
-        Serial.print(front_distance_down_left);
-        Serial.print(" middle : ");
-        Serial.print(front_distance_down_middle);
-        Serial.print(" right : ");
-        Serial.print(front_distance_down_right);
+//        Serial.print("left : ");
+//        Serial.print(front_distance_down_left);
+//        Serial.print(" middle : ");
+//        Serial.print(front_distance_down_middle);
+//        Serial.print(" right : ");
+//        Serial.print(front_distance_down_right);
         Serial.print(" PAWN : ");
         Serial.print(pawn_distance);
         Serial.print(" SIDE2 : ");
@@ -779,14 +779,14 @@ void setup()
 
 
 
-        if (front_distance_down_right < 30)
-            Serial.println("RIGHT");
+//        if (front_distance_down_right < 30)
+//            Serial.println("RIGHT");
 
-        if (front_distance_down_left < 30)
-            Serial.println("LEFT");
+//        if (front_distance_down_left < 30)
+//            Serial.println("LEFT");
 
-        if (front_distance_down_middle < 30)
-            Serial.println("MIDDLE");
+//        if (front_distance_down_middle < 30)
+//            Serial.println("MIDDLE");
 
 //delay(2);
 
@@ -903,7 +903,7 @@ void loop()
 
     sense_opponent_ir();
 
-    if (((opponent_sensor < 48) || (front_distance_up_right < 30) || (front_distance_up_left < 30)) && (has_pawn != AVOIDING_OPP1)
+    if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 30) || (front_distance_up_left < 30)) && (has_pawn != AVOIDING_OPP1)
         && (has_pawn != TAKE_KING2) && (has_pawn != TAKE_KING3)) {
         prev_has_pawn = has_pawn;
 
@@ -923,38 +923,75 @@ void loop()
             stop_robot();
             delay(200);
 
-            delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-            set_new_command(&bot_command_delta, (-50));    // TO ADJUST
-            delay(300);
-            delta_motor.max_speed = DELTA_MAX_SPEED;
 
-            if (has_pawn == NO_PAWN) {                     // We are just looking for new pawns
-                // Goto the next waypoint
-                if (way_point_index >= 5) {
-                    way_point_index = 1;
+//            if ((front_distance_up_right < 30) && (front_distance_up_left < 30)) {
+                // OPPONENT
+
+
+                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                set_new_command(&bot_command_delta, (-10)*(55-opponent_sensor));     // TO ADJUST
+                delay(100);
+                while((bot_command_alpha.state != COMMAND_DONE) || (bot_command_delta.state != COMMAND_DONE))
+                {
+                  delay(50);
                 }
-                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &way_points[way_point_index]);
-                way_point_index++;
+                delta_motor.max_speed = DELTA_MAX_SPEED;
 
-                has_pawn = AVOIDING_OPP1;
-            } else {
-                if ((has_pawn == INTERMEDIATE_RELEASE) || (has_pawn == GOTO_RELEASE)) {
-                    // Can't reach release point
-                    release_point = find_nearest(&maximus, my_color_points, 18);
-                    x_topawn = release_point.x;
-                    y_topawn = release_point.y;
-
-                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                    if (sens == 0) {                       // Front
-                        goto_xy(x_topawn, y_topawn);
-                    } else {                               // Back
-                        goto_xy_back(x_topawn, y_topawn);
+                if (has_pawn == NO_PAWN) {                 // We are just looking for new pawns
+                    // Goto the next waypoint
+                    if (way_point_index >= 5) {
+                        way_point_index = 1;
                     }
+                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &way_points[way_point_index]);
+                    way_point_index++;
 
-                    has_pawn = GOTO_RELEASE;
+                    has_pawn = AVOIDING_OPP1;
+                } else {
+                    if ((has_pawn == INTERMEDIATE_RELEASE) || (has_pawn == GOTO_RELEASE)) {
+                        // Can't reach release point
+                        release_point = find_nearest(&maximus, my_color_points, 18);
+                        x_topawn = release_point.x;
+                        y_topawn = release_point.y;
 
+                        sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                        if (sens == 0) {                   // Front
+                            goto_xy(x_topawn, y_topawn);
+                        } else {                           // Back
+                            goto_xy_back(x_topawn, y_topawn);
+                        }
+
+                        has_pawn = GOTO_RELEASE;
+
+                    }
+                }
+
+/*
+            } else {
+                if ((front_distance_up_right < 30) && (front_distance_up_left > 30)) {
+                    // SOMETHING ON RIGHT
+                    alpha_motor.max_speed = 6000;
+                    set_new_command(&bot_command_alpha, (-30));
+
+
+                    has_pawn = AVOIDING_OPP2;
+                } else {
+                    if ((front_distance_up_right > 30) && (front_distance_up_left < 30)) {
+                        // SOMETHING ON LEFT
+                        alpha_motor.max_speed = 6000;
+                        set_new_command(&bot_command_alpha, (30));
+
+                        has_pawn = AVOIDING_OPP2;
+                    } else {
+                        // TOWER
+                        Serial.println("Tower detected");
+                        // ACTION DEPENDANT DE SI ON RECHERCHE UN PION OU SI ON EN A DEJA UN
+
+                    }
                 }
             }
+*/
+
+
         }
     }
 //    if ((side_sensor_on == 1) && (fabs(maximus.theta) > PI / 2 - 0.12) && (fabs(maximus.theta) < PI / 2 + 0.12)
@@ -1025,7 +1062,7 @@ void loop()
 
 
 
-        BEACON_get_direction();
+        //BEACON_get_direction();
 
         sensorValue = 0;
 
@@ -1059,11 +1096,20 @@ void loop()
                     //} else {
                     stop_robot();
                     //}
+                    delta_motor.max_speed = 20000;
+
                     Serial.println("Take pawn");
                     go_grab_pawn = 0;
+                    
+                    delay(100);
+                    set_new_command(&bot_command_delta, 20);
+                    
                     PAWN_release_pawn();
                     PAWN_go_down();
                     PAWN_grip_pawn();
+                    
+                    delta_motor.max_speed = DELTA_MAX_SPEED;
+                    
                     //PAWN_go_up();
                     //delay_ms(1000);
                     if (pawn_stack < stack_to_do) {        // Stacking pawn
@@ -1420,6 +1466,117 @@ void loop()
         }
 
 
+        if (has_pawn == AVOIDING_OPP2) {
+          if(bot_command_alpha.desired_distance > 0) {
+            if(front_distance_up_left > 35) {
+              if(front_distance_up_right > 35) {
+                // TOWER
+                
+              }
+              else {
+                // OPPONENT
+                stop_robot();
+                delay(200);
+        
+                                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                set_new_command(&bot_command_delta, (-10)*(50-opponent_sensor));     // TO ADJUST
+                delay(400);
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+
+                if (has_pawn == NO_PAWN) {                 // We are just looking for new pawns
+                    // Goto the next waypoint
+                    if (way_point_index >= 5) {
+                        way_point_index = 1;
+                    }
+                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &way_points[way_point_index]);
+                    way_point_index++;
+
+                    has_pawn = AVOIDING_OPP1;
+                } else {
+                    if ((has_pawn == INTERMEDIATE_RELEASE) || (has_pawn == GOTO_RELEASE)) {
+                        // Can't reach release point
+                        release_point = find_nearest(&maximus, my_color_points, 18);
+                        x_topawn = release_point.x;
+                        y_topawn = release_point.y;
+
+                        sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                        if (sens == 0) {                   // Front
+                            goto_xy(x_topawn, y_topawn);
+                        } else {                           // Back
+                            goto_xy_back(x_topawn, y_topawn);
+                        }
+
+                        has_pawn = GOTO_RELEASE;
+
+                    }
+                }
+
+                
+              }
+              alpha_motor.max_speed = 6000;
+
+            }
+          }
+          else if(bot_command_alpha.desired_distance < 0) {
+            if(front_distance_up_right > 35) {
+              if(front_distance_up_left > 35) {
+                // TOWER
+                
+              }
+              else {
+                // OPPONENT
+                stop_robot();
+                delay(200);
+        
+                                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                set_new_command(&bot_command_delta, (-10)*(50-opponent_sensor));     // TO ADJUST
+                delay(400);
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+
+                if (has_pawn == NO_PAWN) {                 // We are just looking for new pawns
+                    // Goto the next waypoint
+                    if (way_point_index >= 5) {
+                        way_point_index = 1;
+                    }
+                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &way_points[way_point_index]);
+                    way_point_index++;
+
+                    has_pawn = AVOIDING_OPP1;
+                } else {
+                    if ((has_pawn == INTERMEDIATE_RELEASE) || (has_pawn == GOTO_RELEASE)) {
+                        // Can't reach release point
+                        release_point = find_nearest(&maximus, my_color_points, 18);
+                        x_topawn = release_point.x;
+                        y_topawn = release_point.y;
+
+                        sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                        if (sens == 0) {                   // Front
+                            goto_xy(x_topawn, y_topawn);
+                        } else {                           // Back
+                            goto_xy_back(x_topawn, y_topawn);
+                        }
+
+                        has_pawn = GOTO_RELEASE;
+
+                    }
+                }
+
+                
+              }
+              alpha_motor.max_speed = 6000;
+
+            }
+
+
+
+
+            
+          }
+
+
+
+        }
+
 
         if ((bot_command_alpha.state == COMMAND_DONE) && (bot_command_delta.state == COMMAND_DONE)) {
             //if ((global_time_counter > 20)) {        // If all commands are done, go to the next step
@@ -1684,6 +1841,8 @@ void loop()
                 placed_pawn[placed_pawn_index].y = my_color_points[nearest_index].y;
                 placed_pawn_index++;
 
+                have_king = 0;
+
                 has_pawn = GO_BACK;
                 break;
 
@@ -1783,6 +1942,10 @@ void loop()
                 //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
                 has_pawn = prev_has_pawn;
                 break;
+            case AVOIDING_OPP2:
+                //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+                has_pawn = prev_has_pawn;
+                break;
             case FIN_MATCH:
                 delta_motor.max_speed = 1;
                 alpha_motor.max_speed = 1;
@@ -1790,6 +1953,7 @@ void loop()
             case TAKE_KING1:
 
                 goto_xy(king_points[number_of_king_detected].x, king_points[number_of_king_detected].y);
+                PAWN_release_for_greenzone();
                 PAWN_go_down();
                 //  goto_xy(king_points[number_of_king_detected].x-50, king_points[number_of_king_detected].y);
 
@@ -1797,8 +1961,8 @@ void loop()
                 break;
             case TAKE_KING2:
 
-                PAWN_release_pawn();
-                PAWN_go_down();
+                //PAWN_release_pawn();
+                //PAWN_go_down();
                 PAWN_grip_pawn();
                 delay(150);
                 pawn_stack++;
@@ -1806,6 +1970,8 @@ void loop()
                 set_new_command(&bot_command_delta, (-400));
 
                 PAWN_go_up();
+
+                have_king = 1;
 
                 has_pawn = TAKE_KING3;
                 break;
@@ -3353,6 +3519,14 @@ void PAWN_release_pawn(void)
 {
     //gripServo_right.write(91);
     //gripServo_left.write(100);
+    gripServo_right.write(111);
+    gripServo_left.write(70);
+}
+
+void PAWN_release_for_greenzone(void)
+{
+    //gripServo_right.write(91);
+    //gripServo_left.write(100);
     gripServo_right.write(101);
     gripServo_left.write(80);
 }
@@ -3363,7 +3537,7 @@ void PAWN_go_up(void)
     // Start going up
     //digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_UP);
     //analogWrite(LIFT_MOTOR_PWM, 100);
-    lifter_servo.write(132);
+    lifter_servo.write(128);
     // Stop when the microswitch in activated
     buttonState = digitalRead(LIFT_SWITCH_UP);
     while (buttonState == 1) {
@@ -3396,10 +3570,10 @@ void PAWN_go_down(void)
     //analogWrite(LIFT_MOTOR_PWM, 100);
 
     if (digitalRead(LIFT_SWITCH_UP) == 0) {
-        lifter_servo.write(45);
+        lifter_servo.write(47);
         delay(200);
     } else {
-        lifter_servo.write(45);
+        lifter_servo.write(47);
         delay(20);
     }
     // Stop when the microswitch in activated

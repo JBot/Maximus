@@ -1,0 +1,49 @@
+digraph decisions {
+
+	no_pawn;
+	any_state;
+	take_pawn;
+	goto_release;
+	go_back;
+	turning_direction;
+	avoiding1;
+	avoiding2;
+	intermediate_release;
+	take_king1;
+	take_king2;
+	take_king3;
+	avoiding0;
+
+	no_pawn -> no_pawn [label = "move done"];
+	no_pawn -> take_pawn [label = "pawn stack full"];
+	no_pawn -> turning_direction [label = "pawn stack not full"];
+	
+	take_pawn -> goto_release [label = "other"];
+	take_pawn -> intermediate_release [label = "pawn 2 and 3"];
+
+	intermediate_release -> goto_release [label = "move done"];
+
+	goto_release -> go_back [label = "move done"];
+
+	go_back -> take_king1 [label = "king have been detected before"];
+	go_back -> turning_direction [label = "released pawn not in trajectory"];
+	go_back -> avoiding1 [label = "released pawn in trajectory"];
+
+	turning_direction -> no_pawn [label = "move done"];
+
+	avoiding0 -> avoiding1 [label = "move done"];
+
+	avoiding1 -> avoiding2 [label = "move done"];
+
+	avoiding2 -> no_pawn [label = "move done"];
+
+	take_king1 -> take_king2 [label = "move done"];
+
+	take_king2 -> take_king3 [label = "move done"];
+
+	take_king3 -> goto_release [label = "first king"];
+	take_king3 -> turning_direction [label = "second king"];
+
+	any_state -> avoiding0 [label = "pawn in trajectory"];
+
+}
