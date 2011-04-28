@@ -22,6 +22,13 @@ Clock frequency : 16,00 MHz
 #include <LCD4Bit_mod.h>
 #include "HL1606strip.h"
 
+#include <NewSoftSerial.h>
+#include <RogueMP3.h>
+
+NewSoftSerial rmp3_serial(12, 13);
+RogueMP3 rmp3(rmp3_serial);
+
+
 //create object to control an LCD.  
 //number of lines in display=1
 LCD4Bit_mod lcd = LCD4Bit_mod(2);
@@ -54,6 +61,10 @@ int serial_command;
 
 int start_robot = 0;
 
+int check_complete = 0;
+
+
+
 void setup()
 {
     pinMode(13, OUTPUT);                                   //we'll use the debug LED to output a heartbeat
@@ -67,7 +78,22 @@ void setup()
 
     Serial.begin(57600);
 
-  //  chaseSingle(WHITE, 40);
+    rmp3_serial.begin(9600);
+
+    rmp3.sync();
+
+    rmp3.setvolume(0);
+
+    rmp3.playfile("/goliath_online.mp3");
+    //delay(3000);
+    //rmp3.playfile("/levelone_diagnostics.mp3");
+    //delay(3000);
+    //rmp3.playfile("/checklist_completed.mp3");
+    //rmp3.playfile("/01 Rock Dust Light Star.mp3");
+
+    //delay(3000);
+
+    //  chaseSingle(WHITE, 40);
 
 /*
     analogWrite(9, 255);
@@ -90,12 +116,12 @@ void loop()
             adc_key_in = analogRead(0);                    // read the value from the sensor  
             key = get_key(adc_key_in);                     // convert into key press
 
-    /*        if (key == 1) {
-                colorWipe(RED, 30);
-            } else if (key == 2) {
-                colorWipe(BLUE, 30);
-            }
-*/
+            /*        if (key == 1) {
+               colorWipe(RED, 30);
+               } else if (key == 2) {
+               colorWipe(BLUE, 30);
+               }
+             */
             if (key != oldkey) {
                 oldkey = key;
                 if (key >= 0) {
@@ -109,6 +135,7 @@ void loop()
                             lcd.cursorTo(2, 5);            //line=2, x=5
                             lcd.printIn(msgs[key]);
                             selected_color = oldcommand;
+                            rmp3.playfile("/levelone_diagnostics.mp3");
                             /*if(selected_color == 1) {
                                analogWrite(9, 0);
                                analogWrite(10, 0);
@@ -129,18 +156,19 @@ void loop()
     }
 
     delay(10);
-    if (digitalRead(START_PIN) == 1) {
+    if ((digitalRead(START_PIN) == 1) && (start_robot == 0)) {
         start_robot = 1;
-  /*      if ((selected_color == 1) || (selected_color == 2)) {
-            if (selected_color == 1) {
-                chaseSingle(RED, 30);
-            } else {
-                chaseSingle(BLUE, 30);
-            }
-        }
-*/
+        /*      if ((selected_color == 1) || (selected_color == 2)) {
+           if (selected_color == 1) {
+           chaseSingle(RED, 30);
+           } else {
+           chaseSingle(BLUE, 30);
+           }
+           }
+         */
+        rmp3.playfile("/pizza.mp3");
     } else {
-        start_robot = 0;
+        //start_robot = 0;
     }
 
 
@@ -160,17 +188,32 @@ void loop()
             }
             break;
         case 'S':
+            if (check_complete == 0) {
+                rmp3.playfile("/checklist_completed.mp3");
+                check_complete = 1;
+            }
             if (start_robot == 1) {                        // START !!!
                 Serial.print('O');
             } else {
                 Serial.print('N');                         // DO NOT START !!!
             }
             break;
+
+        case 'o':
+            rmp3.playfile("/step_away.mp3");
+            break;
+        case 'e':
+            rmp3.playfile("/smell_like_victory.mp3");
+            break;
+        case 'h':
+            rmp3.playfile("/heavy_metal.mp3");
+            break;
+
         }
 
     }
     //delay(1000);
-    digitalWrite(13, LOW);
+    //digitalWrite(13, LOW);
 
 }
 
