@@ -31,19 +31,17 @@ digraph G {
 		release_on_bonus2  [label = "Release on bonus"];
 		release2  [label = "Release"];
 		any_states2  [label = "Any state", color = red];
-		turning_direction2  [label = "Turning direction"];
 		avoiding2  [label = "Avoiding", color = red];
 		take_king2  [label = "Take king"];
 
 		
-		no_pawn2 -> turning_direction2 [label = "move done"];
-		turning_direction2 -> take_pawn2 [label = "move done"];
+		no_pawn2 -> take_pawn2 [label = "move done"];
 		take_pawn2 -> go_back2 [label = "move done"];
 		
-		go_back2 -> tmp_pawn2 [label = "got 2nd pawn & king stored"];
+		go_back2 -> tmp_pawn2 [label = "got 2nd pawn \n& king stored"];
 		go_back2 -> tmp_pawn2 [label = "2nd pawn"];
-		go_back2 -> tmp_pawn2 [label = "got king & NO pawn stored"];
-		go_back2 -> stack2 [label = "got king & pawn stored"];
+		go_back2 -> tmp_pawn2 [label = "got king \n& NO pawn stored"];
+		go_back2 -> stack2 [label = "got king \n& pawn stored"];
 		go_back2 -> release_on_bonus2 [label = "first pawn"];
 		go_back2 -> find_pawn2 [label = "first king"];
 
@@ -81,7 +79,7 @@ digraph G {
 
 	start -> no_pawn1;
         go_back1 -> no_pawn2 [label = "2 pawn have been placed"];
-	back2 -> no_pawn3 [label = "All pawn in green zone taken", color = red];
+	back2 -> no_pawn3 [label = "All pawn in green \nzone taken", color = red];
 	take_pawn3 -> end;
 
 	any_state_global -> end [label = "90 secondes"];

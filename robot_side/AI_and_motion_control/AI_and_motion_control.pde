@@ -137,7 +137,8 @@ void delay_ms(uint16_t millis)
 #define ALPHA_MAX_ACCEL         300
 #define ALPHA_MAX_DECEL         3500                       //2500
 #define DELTA_MAX_SPEED         50000                      //45000                      //50000//37000
-#define DELTA_MAX_SPEED_BACK    30000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED_BACK    35000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED_BACK_PAWN    45000
 #define DELTA_MAX_ACCEL         1000                       //900                        //600
 #define DELTA_MAX_DECEL         10000                      //4000                       //1800
 
@@ -308,6 +309,9 @@ double my_angle = 0.0;
 int have_king = 0;
 int store_n_stack = 0;
 
+int barCode_timer = 0;
+
+
 /***********************/
 /* INTERRUPT FUNCTIONS */
 /***********************/
@@ -404,8 +408,11 @@ ISR(TIMER1_OVF_vect)
         time_in_match++;
 
     if (time_in_match > 10970) {                           // End of the match
-        if (time_in_match < 21900)
+        if (time_in_match < 21900) {
+            PAWN_release_pawn();
             Serial.println("STOP ROBOT");
+            Serial3.print("e");
+        }
         time_in_match = 21901;
 
         stop_robot();
@@ -624,9 +631,9 @@ void setup()
     Serial.begin(57600);                                   // DEBUG
     //Serial.begin(19200);
     //Serial.begin(115200);
-    Serial1.begin(38400);                                  // ROBOCLAW
+    Serial1.begin(9600);                                   // BARCODE SCANNER
     // Bluetooth
-    Serial2.begin(38400);
+    Serial2.begin(38400);                                  // ROBOCLAW
     Serial3.begin(57600);                                  // Color module
 
     Wire.begin();
@@ -770,6 +777,21 @@ void setup()
         //      side_king_sensor2 = 150;
 
 
+          if(barCode_timer == 0) {
+            barCode_scan();
+            barCode_timer = 25;
+          }
+          else {
+            barCode_timer--;
+          }
+          
+          if (barCode_checkifdata() == 1) {
+              have_king = 1;
+              Serial.println("CODEBAR DETECTED");
+          }
+
+
+
 //        Serial.print("left : ");
 //        Serial.print(front_distance_down_left);
 //        Serial.print(" middle : ");
@@ -889,7 +911,7 @@ void loop()
     }
 
 
-    if (global_time_counter > 500) {
+    if (global_time_counter > 100) {
         //Serial.println("Alive");
         global_time_counter = 0;
     }
@@ -929,7 +951,7 @@ void loop()
                     go_grab_pawn = 0;
 
                     delay(100);
-                    set_new_command(&bot_command_delta, 20);
+                    set_new_command(&bot_command_delta, 50);
 
                     PAWN_release_pawn();
                     PAWN_go_down();
@@ -1093,13 +1115,16 @@ void loop()
                     set_new_command(&bot_command_delta, 20);
 
                     PAWN_release_pawn();
+                    delay(100);
+                    set_new_command(&bot_command_delta, -20);
+                    delay(100);
                     PAWN_go_down();
                     PAWN_grip_pawn();
 
                     delta_motor.max_speed = DELTA_MAX_SPEED;
 
                     // Go put the pawn on the right space
-                    delay(100);
+                    delay(200);
                     PAWN_go_up();
 
                     x_topawn = my_color_points[0].x;
@@ -1130,6 +1155,59 @@ void loop()
         }
 
 
+        /* For KING detection */
+        if ((has_pawn == TAKE_PAWN)) {
+            //if ((has_pawn == TAKE_PAWN) && (bot_command_alpha.state == COMMAND_DONE)) {
+            if (barCode_timer == 0) {
+                barCode_scan();
+                barCode_timer = 25;
+            } else {
+                barCode_timer--;
+            }
+
+            if (barCode_checkifdata() == 1) {
+                have_king = 1;
+            }
+
+        }
+
+
+
+
+        if (has_pawn == AVOIDING2) {
+            // Check if the trajectory become available
+
+            the_point.x = maximus.pos_X;
+            the_point.y = maximus.pos_Y;
+            if (trajectory_intersection_pawn(&the_point, &my_test_point, &release_point, 270) == 1) {   // pawn is in the trajectory
+                // Compute an intermediate way_point
+                //Serial.print("In trajectory ");
+
+            } else {
+                Serial.println("Not anymore in trajectory");
+                //stop_robot();
+
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+                set_new_command(&bot_command_delta, 10);
+                //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+                has_pawn = prev_has_pawn;
+                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                //delay(400);
+
+
+            }
+
+        }
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1139,14 +1217,18 @@ void loop()
 
             case NO_PAWN:
 
-                if (green_points[green_point_index].x < 0)
+/*                if (green_points[green_point_index].x < 0)
                     goto_xy(-900, green_points[green_point_index].y);
                 else
                     goto_xy(900, green_points[green_point_index].y);
+*/
+                goto_xy(green_points[green_point_index].x, green_points[green_point_index].y);
+
                 PAWN_release_for_greenzone();
                 PAWN_go_down();
 
-                has_pawn = TURNING_DIRECTION;
+                //has_pawn = TURNING_DIRECTION;
+                has_pawn = TAKE_PAWN;
                 break;
 
             case TURNING_DIRECTION:
@@ -1188,8 +1270,8 @@ void loop()
                 PAWN_grip_pawn();
                 delay(150);
                 pawn_stack++;
-                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                set_new_command(&bot_command_delta, (-400));
+                delta_motor.max_speed = DELTA_MAX_SPEED_BACK_PAWN;
+                set_new_command(&bot_command_delta, (-330));    //350
 
                 PAWN_go_up();
 
@@ -1387,16 +1469,24 @@ void loop()
                     Serial.println("prise roi stocke");
                     has_pawn = TAKE_KING1;
                 } else {
+                    has_pawn = NO_PAWN;
                     if (green_point_index == 0) {
 
                     } else {
                         green_point_index--;
-                        if (green_points[green_point_index].x < 0)
-                            goto_xy(-800, green_points[green_point_index].y);
-                        else
-                            goto_xy(800, green_points[green_point_index].y);
+                        if (green_points[green_point_index].x < 0) {
+                            my_test_point.x = -800;
+                            my_test_point.y = green_points[green_point_index].y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                            //goto_xy(-800, green_points[green_point_index].y);
+                        } else {
+                            my_test_point.x = 800;
+                            my_test_point.y = green_points[green_point_index].y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                            //goto_xy(800, green_points[green_point_index].y);
+                        }
                     }
-                    has_pawn = NO_PAWN;
+                    //has_pawn = NO_PAWN;
                 }
                 break;
 
@@ -1404,7 +1494,10 @@ void loop()
                 PAWN_release_pawn();
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                 delay(50);
-                set_new_command(&bot_command_delta, (-170));    // TO ADJUST
+                if (store_n_stack == 1)
+                    set_new_command(&bot_command_delta, (-400));        // TO ADJUST
+                else
+                    set_new_command(&bot_command_delta, (-170));        // TO ADJUST
 
                 PAWN_go_up();
                 pawn_stack = 0;
@@ -1442,6 +1535,8 @@ void loop()
 
             case STACK:
                 PAWN_release_pawn();
+                set_new_command(&bot_command_delta, -20);
+                delay(100);
                 PAWN_go_down();
                 PAWN_grip_pawn();
                 release_priorities[9] = 3;
@@ -1456,6 +1551,8 @@ void loop()
                 break;
 
             case TAKE_KING1:
+                set_new_command(&bot_command_delta, (50)); // TO ADJUST
+                delay(200);
                 PAWN_go_down();
                 PAWN_grip_pawn();
                 delay(100);
@@ -1482,6 +1579,33 @@ void loop()
 
                 has_pawn = STACK;
 
+                break;
+
+            case AVOIDING0:
+
+                avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                my_angle = angle_coord(&maximus, release_point.x, release_point.y);
+
+                if (my_angle < 0) {                        // Avoid by left
+                    set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
+                } else {                                   // Avoid by right
+                    set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                }
+
+                has_pawn = AVOIDING1;
+                break;
+            case AVOIDING1:
+
+                avoid_object(&maximus, &release_point, avoid_radius + 50);
+
+                has_pawn = AVOIDING2;
+                break;
+            case AVOIDING2:
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+                goto_xy(my_test_point.x, my_test_point.y);
+                has_pawn = prev_has_pawn;
                 break;
 
 
@@ -1691,7 +1815,10 @@ void init_first_position(struct robot *my_robot)
 
     delay(1000);
     // Go in the middle of the starting area
-    set_new_command(&bot_command_delta, 100);
+    set_new_command(&bot_command_delta, 80);
+
+    gripServo_right.write(50);
+    gripServo_left.write(130);
 
     delay(2000);
     // Set the speed to the maximum
@@ -1789,23 +1916,23 @@ void init_color_points(void)
     blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
 
     /* Green points */
-    green_points[0].x = (color) * 1170;
-    green_points[1].x = (color) * 1170;
-    green_points[2].x = (color) * 1170;
+    green_points[0].x = (color) * 1160;
+    green_points[1].x = (color) * 1160;
+    green_points[2].x = (color) * 1160;
     green_points[0].y = 690;
     green_points[1].y = 970;
     green_points[2].y = 1250;
 
-    green_points[3].x = (color) * 1170;
-    green_points[4].x = (color) * 1170;
-    green_points[5].x = (-color) * 1170;
+    green_points[3].x = (color) * 1160;
+    green_points[4].x = (color) * 1160;
+    green_points[5].x = (-color) * 1160;
     green_points[3].y = 1530;
     green_points[4].y = 1810;
     green_points[5].y = 690;
 
-    green_points[6].x = (-color) * 1170;
-    green_points[7].x = (-color) * 1170;
-    green_points[8].x = (-color) * 1170;
+    green_points[6].x = (-color) * 1160;
+    green_points[7].x = (-color) * 1160;
+    green_points[8].x = (-color) * 1160;
     green_points[6].y = 970;
     green_points[7].y = 1250;
     green_points[8].y = 1530;
@@ -1845,8 +1972,8 @@ void init_way_points(void)
 
     way_points[0].x = color * 1050;
     way_points[0].y = 200;
-    way_points[1].x = color * 730;
-    way_points[1].y = 340;
+    way_points[1].x = color * 700;
+    way_points[1].y = 350;
     way_points[2].x = color * 700;
     way_points[2].y = 1550;
 
@@ -2820,7 +2947,7 @@ void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int 
     tmp.y = my_robot->pos_Y;
     double best_distance = 99999.9;
     for (int i = 0; i < size; i++) {
-        if (trajectory_intersection_pawn(&tmp, dest, &tab[i], 220) == 1) {
+        if (trajectory_intersection_pawn(&tmp, dest, &tab[i], 270) == 1) {
             double distance = distance_coord(my_robot, tab[i].x, tab[i].y);
             if (distance < best_distance) {
                 best_distance = distance;
@@ -2834,17 +2961,18 @@ void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int 
 
     if (result2 == 1) {
         double ang, dist;
-
+        Serial.println("Must avoid pawn");
         release_point.x = result.x;
         release_point.y = result.y;
 
         ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
         set_new_command(&bot_command_alpha, ang);
 
-        dist = distance_coord(&maximus, result.x, result.y) - 270;      // TO REDUCE LATER
+        dist = distance_coord(&maximus, result.x, result.y) - 280;      // TO REDUCE LATER
         set_new_command(&prev_bot_command_delta, dist);
         bot_command_delta.state = WAITING_BEGIN;
         //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+        prev_has_pawn = has_pawn;
         has_pawn = AVOIDING0;
     } else {
         goto_xy(dest->x, dest->y);
@@ -2943,7 +3071,7 @@ void PAWN_go_up(void)
     // Start going up
     //digitalWrite(LIFT_MOTOR_SENS, LIFT_GO_UP);
     //analogWrite(LIFT_MOTOR_PWM, 100);
-    lifter_servo.write(128);
+    lifter_servo.write(125);
     // Stop when the microswitch in activated
     buttonState = digitalRead(LIFT_SWITCH_UP);
     while (buttonState == 1) {
@@ -3008,9 +3136,9 @@ void PAWN_go_down(void)
 
 }
 
-        /************************************/
-        /* COMMUNICATION WITH BEACON MODULE */
-        /************************************/
+/************************************/
+/* COMMUNICATION WITH BEACON MODULE */
+/************************************/
 void BEACON_get_direction(void)
 {
     if (BEACON_NORTH_PIN) {
@@ -3022,4 +3150,27 @@ void BEACON_get_direction(void)
     } else if (BEACON_WEST_PIN) {
         beacon_direction = BEACON_WEST;
     }
+}
+
+
+/**************************************/
+/* COMMUNICATION WITH BARCODE SCANNER */
+/**************************************/
+void barCode_scan(void)
+{
+    Serial1.print(0x1B, BYTE);
+    Serial1.print("Z");
+    Serial1.print(0x0D, BYTE);
+}
+
+/* Returns 0 if nothing, 1 if something */
+int barCode_checkifdata(void)
+{
+    int result = 0;
+    while (Serial1.available()) {
+        result = 1;
+        //Serial.print(Serial1.read()); // DEBUG
+        Serial1.read();
+    }
+    return result;
 }
