@@ -22,9 +22,9 @@ digraph G {
 	subgraph cluster_1 {
 		node [style=filled];
 		no_pawn2  [label = "No pawn"];
-		take_pawn2  [label = "Take pawn"];
-		go_back2  [label = "Go back"];
-		back2  [label = "Back"];
+		take_pawn2  [label = "Take pawn", color = green];
+		go_back2  [label = "Go back", color = green];
+		back2  [label = "Back", color = green];
 		find_pawn2  [label = "Find pawn"];
 		tmp_pawn2  [label = "Tmp pawn"];
 		stack2  [label = "Stack"];

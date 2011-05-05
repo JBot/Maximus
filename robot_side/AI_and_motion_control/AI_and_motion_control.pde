@@ -1090,6 +1090,62 @@ void loop()
 
 
 
+        Wire.beginTransmission(0x70);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(0x70, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor = Wire.receive();
+            opponent_sensor = opponent_sensor << 8;
+            opponent_sensor |= Wire.receive();
+        }
+
+        Wire.beginTransmission(0x70);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        sense_opponent_ir();
+
+
+        /* OPPONENT DETECTION */
+        if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 30) || (front_distance_up_left < 30)) && (has_pawn != TAKE_PAWN)
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
+            prev_has_pawn = has_pawn;
+
+            struct Point test_point;
+            test_point.x = maximus.pos_X + 10.0 * (opponent_sensor + 5) * cos(maximus.theta);
+            test_point.y = maximus.pos_Y + 10.0 * (opponent_sensor + 5) * sin(maximus.theta);
+
+            if ((check_point_in_map(&test_point) != 0)) {
+                Serial.print("Opponent detected ");
+                Serial.print(opponent_sensor);
+                Serial.print(" ");
+                Serial.print(front_distance_up_right);
+                Serial.print(" ");
+                Serial.println(front_distance_up_left);
+
+
+                stop_robot();
+                delay(200);
+
+
+
+            }
+
+        }
+
+
+
+
+
+
+
+
+
+
 
         /* For pawn detection */
         if ((has_pawn == FIND_PAWN)) {
@@ -1233,36 +1289,7 @@ void loop()
 
             case TURNING_DIRECTION:
 
-                // CHECK IF IT IS A PAWN OR A KING
-                delay(50);
-                sensorValue = analogRead(PAWN_SENSOR_RIGHT);
-                side_king_sensor = convert_longIR_value(sensorValue);
-                if (side_king_sensor > 150 || side_king_sensor < 0)
-                    side_king_sensor = 150;
 
-                delay(50);
-                sensorValue = analogRead(PAWN_SENSOR_RIGHT);
-                side_king_sensor = (side_king_sensor + convert_longIR_value(sensorValue)) / 2;
-                if (side_king_sensor > 150 || side_king_sensor < 0)
-                    side_king_sensor = 150;
-                Serial.println(side_king_sensor);
-
-                if (side_king_sensor < 30) {
-                    have_king = 1;
-                } else {
-                    have_king = 0;
-                }
-
-                delay(2000);                               // JUST FOR DEBUG
-
-                goto_xy(green_points[green_point_index].x, green_points[green_point_index].y);
-
-                Serial.print(".Go to :");
-                Serial.print(green_points[green_point_index].x);
-                Serial.print(" ");
-                Serial.println(green_points[green_point_index].y);
-
-                has_pawn = TAKE_PAWN;
                 break;
 
             case TAKE_PAWN:
