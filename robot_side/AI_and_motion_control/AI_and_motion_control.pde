@@ -311,6 +311,19 @@ int store_n_stack = 0;
 
 int barCode_timer = 0;
 
+int working_side = 1;                                      // 1 = working on our side / -1 = working on the opponent side
+int y_king = 0;                                            // 0 if king have not been found
+int y_queen = 0;                                           // 0 if queen have not been found
+
+struct Point taken_king1;
+struct Point taken_king2;
+struct Point taken_queen1;
+struct Point taken_queen2;
+int king_taken_our = 0;
+int king_taken_opponent = 0;
+int queen_taken_our = 0;
+int queen_taken_opponent = 0;
+
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -666,6 +679,15 @@ void setup()
     init_color_points();                                   // Init the color field
     init_way_points();
 
+    taken_king1.x = 0;
+    taken_king1.y = 0;
+    taken_king2.x = 0;
+    taken_king2.y = 0;
+    taken_queen1.x = 0;
+    taken_queen1.y = 0;
+    taken_queen2.x = 0;
+    taken_queen2.y = 0;
+
 //    init_placed_pawns_for_test();
 
     //PAWN_go_down();
@@ -978,24 +1000,22 @@ void loop()
                             goto_xy_back(x_topawn, y_topawn);
                         }
                         Serial.println("Premier pion");
-
+                        has_pawn = GOTO_RELEASE;
                     } else {                               // Pawn fot the secured zone
-                        x_topawn = my_color_points[15].x;
-                        y_topawn = my_color_points[15].y;
-                        release_point.x = my_color_points[15].x;
-                        release_point.y = my_color_points[15].y;
-                        nearest_index = 15;
+                        x_topawn = my_color_points[16].x;
+                        y_topawn = my_color_points[16].y;
+                        release_point.x = my_color_points[16].x;
+                        release_point.y = my_color_points[16].y;
+                        nearest_index = 16;
 
-                        sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                        if (sens == 0) {                   // Front
-                            goto_xy(x_topawn, y_topawn);
-                        } else {                           // Back
-                            goto_xy_back(x_topawn, y_topawn);
-                        }
+                        //goto_xy(0, 1600);
+                        goto_xy(-170, 1600);               // POUR LES TESTS A LA MAISON
+
                         Serial.println("Second pion");
+                        has_pawn = INTERMEDIATE_RELEASE;
                     }
 
-                    has_pawn = GOTO_RELEASE;
+
                     pawn_stack = 0;
 
                     nb_check = 0;
@@ -1027,7 +1047,16 @@ void loop()
 
                 break;
 
+            case INTERMEDIATE_RELEASE:
+                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                if (sens == 0) {                           // Front
+                    goto_xy(x_topawn, y_topawn);
+                } else {                                   // Back
+                    goto_xy_back(x_topawn, y_topawn);
+                }
 
+                has_pawn = GOTO_RELEASE;
+                break;
 
             case GOTO_RELEASE:                            // The robot have a pawn and is on his release point
                 PAWN_release_pawn();
@@ -1050,7 +1079,7 @@ void loop()
 
             case GO_BACK:
                 delta_motor.max_speed = DELTA_MAX_SPEED;
-                if (nearest_index == 15) {                 // Phase 1 done
+                if (nearest_index == 16) {                 // Phase 1 done
                     green_point_index = 3;
                     if (green_points[green_point_index].x < 0)
                         goto_xy(-800, green_points[green_point_index].y);
@@ -1221,8 +1250,9 @@ void loop()
                 barCode_timer--;
             }
 
-            if (barCode_checkifdata() == 1) {
-                have_king = 1;
+            if (have_king == 0) {
+                int test_barcode = barCode_checkifdata();
+                have_king = test_barcode;
             }
 
         }
@@ -1273,12 +1303,14 @@ void loop()
 
             case NO_PAWN:
 
+                barCode_flush();
+
 /*                if (green_points[green_point_index].x < 0)
                     goto_xy(-900, green_points[green_point_index].y);
                 else
                     goto_xy(900, green_points[green_point_index].y);
 */
-                goto_xy(green_points[green_point_index].x, green_points[green_point_index].y);
+                goto_xy(working_side * green_points[green_point_index].x, green_points[green_point_index].y);
 
                 PAWN_release_for_greenzone();
                 PAWN_go_down();
@@ -1300,6 +1332,54 @@ void loop()
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK_PAWN;
                 set_new_command(&bot_command_delta, (-330));    //350
 
+                if (have_king == 1) {                      // I have a king
+                    if (working_side == 1) {               // On our side
+                        king_taken_our = 1;
+
+                        if (taken_king1.x == 0) {
+                            taken_king1.x = green_points[green_point_index].x;
+                            taken_king1.y = green_points[green_point_index].y;
+                        } else {
+                            taken_king2.x = green_points[green_point_index].x;
+                            taken_king2.y = green_points[green_point_index].y;
+                        }
+                    } else {
+                        king_taken_opponent = 1;
+
+                        if (taken_king1.x == 0) {
+                            taken_king1.x = green_points[green_point_index].x;
+                            taken_king1.y = green_points[green_point_index].y;
+                        } else {
+                            taken_king2.x = green_points[green_point_index].x;
+                            taken_king2.y = green_points[green_point_index].y;
+                        }
+                    }
+                } else if (have_king == 2) {               // I have a queen
+                    if (working_side == 1) {               // On our side
+                        queen_taken_our = 1;
+
+                        if (taken_queen1.x == 0) {
+                            taken_queen1.x = green_points[green_point_index].x;
+                            taken_queen1.y = green_points[green_point_index].y;
+                        } else {
+                            taken_queen2.x = green_points[green_point_index].x;
+                            taken_queen2.y = green_points[green_point_index].y;
+                        }
+                    } else {
+                        queen_taken_opponent = 1;
+
+                        if (taken_queen1.x == 0) {
+                            taken_queen1.x = green_points[green_point_index].x;
+                            taken_queen1.y = green_points[green_point_index].y;
+                        } else {
+                            taken_queen2.x = green_points[green_point_index].x;
+                            taken_queen2.y = green_points[green_point_index].y;
+                        }
+                    }
+                }
+
+
+
                 PAWN_go_up();
 
                 has_pawn = GO_BACK;
@@ -1310,142 +1390,133 @@ void loop()
 
                 // MULTIPLE POSSIBILITIES
                 if (have_king == 1) {                      // I have a king
-                    switch (release_priorities[0]) {
-                    case 20:                              // There is only the first pawn on it => Find a second pawn
+
+
+                    if (working_side == 1) {               // On our side
                         way_point_index = 3;
                         goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
 
                         has_pawn = FIND_PAWN;
-                        break;
-                    case 99:                              // There is already a tower on it
-                        switch (release_priorities[16]) {
-                        case 2:                           // Nothing on it
-                            // Store our king
-                            x_topawn = my_color_points[6].x;
-                            y_topawn = my_color_points[6].y;
-                            release_point.x = my_color_points[6].x;
-                            release_point.y = my_color_points[6].y;
-                            nearest_index = 6;
+                    } else {
+                        nearest_index = 11;
+                        x_topawn = my_color_points[nearest_index].x;
+                        y_topawn = my_color_points[nearest_index].y;
+                        release_point.x = my_color_points[nearest_index].x;
+                        release_point.y = my_color_points[nearest_index].y;
 
-                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                            if (sens == 0) {               // Front
-                                goto_xy(x_topawn, y_topawn);
-                            } else {                       // Back
-                                goto_xy_back(x_topawn, y_topawn);
-                            }
-                            Serial.println("Stockage roi");
 
-                            has_pawn = TMP_PAWN;
-                            break;
-                        case 20:                          // There is already a pawn on it
-                            if (release_priorities[9] == 20) {  // A second pawn is store
-                                // Stack all the pawns on the bonus zone
-
-                                x_topawn = my_color_points[9].x;
-                                y_topawn = my_color_points[9].y;
-                                release_point.x = my_color_points[9].x;
-                                release_point.y = my_color_points[9].y;
-                                nearest_index = 9;
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-                                Serial.println("Goto the store pawn");
-
-                                has_pawn = STACK;
-                            } else {
-                                // Store our king
-                                x_topawn = my_color_points[6].x;
-                                y_topawn = my_color_points[6].y;
-                                release_point.x = my_color_points[6].x;
-                                release_point.y = my_color_points[6].y;
-                                nearest_index = 6;
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-                                Serial.println("Stockage roi");
-
-                                has_pawn = TMP_PAWN;
-                            }
-                            break;
-
+                        sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                        if (sens == 0) {                   // Front
+                            goto_xy(x_topawn, y_topawn);
+                        } else {                           // Back
+                            goto_xy_back(x_topawn, y_topawn);
                         }
-                        break;
+
+
+                        has_pawn = GOTO_RELEASE;
                     }
+                } else if (have_king == 2) {               // I have a queen
 
-                } else {
 
-                    switch (release_priorities[16]) {
-                    case 2:
-
-                        x_topawn = my_color_points[16].x;
-                        y_topawn = my_color_points[16].y;
-                        release_point.x = my_color_points[16].x;
-                        release_point.y = my_color_points[16].y;
+                    if (working_side == 1) {               // On our side
                         nearest_index = 16;
+                        x_topawn = my_color_points[nearest_index].x;
+                        y_topawn = my_color_points[nearest_index].y;
+                        release_point.x = my_color_points[nearest_index].x;
+                        release_point.y = my_color_points[nearest_index].y;
 
                         //goto_xy(0, 1600);
                         goto_xy(-170, 1600);               // POUR LES TESTS A LA MAISON
 
-                        Serial.println("Pose bonus");
-
                         has_pawn = RELEASE_BONUS;
-                        break;
+                    } else {
+                        nearest_index = 5;
+                        x_topawn = my_color_points[nearest_index].x;
+                        y_topawn = my_color_points[nearest_index].y;
+                        release_point.x = my_color_points[nearest_index].x;
+                        release_point.y = my_color_points[nearest_index].y;
 
-                    case 20:
-                        // Check if we already store a king
-                        if (release_priorities[6] == 30) { // YES
-                            // Stack
-                            // FIRST : Store on the second point
-                            x_topawn = my_color_points[9].x;
-                            y_topawn = my_color_points[9].y;
-                            release_point.x = my_color_points[9].x;
-                            release_point.y = my_color_points[9].y;
-                            nearest_index = 9;
 
-                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                            if (sens == 0) {               // Front
-                                goto_xy(x_topawn, y_topawn);
-                            } else {                       // Back
-                                goto_xy_back(x_topawn, y_topawn);
-                            }
-                            Serial.println("Stockage pion");
-                            store_n_stack = 1;
-
-                            has_pawn = TMP_PAWN;
-                            //has_pawn = STACK;
-                        } else {                           // NO
-                            // Store on the second point
-                            x_topawn = my_color_points[9].x;
-                            y_topawn = my_color_points[9].y;
-                            release_point.x = my_color_points[9].x;
-                            release_point.y = my_color_points[9].y;
-                            nearest_index = 9;
-
-                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                            if (sens == 0) {               // Front
-                                goto_xy(x_topawn, y_topawn);
-                            } else {                       // Back
-                                goto_xy_back(x_topawn, y_topawn);
-                            }
-                            Serial.println("Stockage pion");
-
-                            has_pawn = TMP_PAWN;
+                        sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                        if (sens == 0) {                   // Front
+                            goto_xy(x_topawn, y_topawn);
+                        } else {                           // Back
+                            goto_xy_back(x_topawn, y_topawn);
                         }
 
-
-                        break;
-
-
+                        has_pawn = GOTO_RELEASE;
                     }
+                } else {                                   // I have a pawn
+                    if (working_side == 1) {               // On our side
+                        if (release_priorities[11] == 2) { // Nothing on it
+                            nearest_index = 11;
+                            x_topawn = my_color_points[nearest_index].x;
+                            y_topawn = my_color_points[nearest_index].y;
+                            release_point.x = my_color_points[nearest_index].x;
+                            release_point.y = my_color_points[nearest_index].y;
 
+                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                            if (sens == 0) {               // Front
+                                goto_xy(x_topawn, y_topawn);
+                            } else {                       // Back
+                                goto_xy_back(x_topawn, y_topawn);
+                            }
+                            working_side = -1;
+                        } else if (release_priorities[5] == 2) {        // Nothing on it
+                            nearest_index = 5;
+                            x_topawn = my_color_points[nearest_index].x;
+                            y_topawn = my_color_points[nearest_index].y;
+                            release_point.x = my_color_points[nearest_index].x;
+                            release_point.y = my_color_points[nearest_index].y;
+
+                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                            if (sens == 0) {               // Front
+                                goto_xy(x_topawn, y_topawn);
+                            } else {                       // Back
+                                goto_xy_back(x_topawn, y_topawn);
+                            }
+                            working_side = -1;
+                        } else {
+                            // Find another place
+
+                        }
+
+                        working_side = -1;                 // Go to the other side
+                        has_pawn = GOTO_RELEASE;
+                    } else {
+                        if (release_priorities[11] == 2) { // Nothing on it
+                            nearest_index = 11;
+                            x_topawn = my_color_points[nearest_index].x;
+                            y_topawn = my_color_points[nearest_index].y;
+                            release_point.x = my_color_points[nearest_index].x;
+                            release_point.y = my_color_points[nearest_index].y;
+
+                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                            if (sens == 0) {               // Front
+                                goto_xy(x_topawn, y_topawn);
+                            } else {                       // Back
+                                goto_xy_back(x_topawn, y_topawn);
+                            }
+                        } else if (release_priorities[5] == 2) {        // Nothing on it
+                            nearest_index = 5;
+                            x_topawn = my_color_points[nearest_index].x;
+                            y_topawn = my_color_points[nearest_index].y;
+                            release_point.x = my_color_points[nearest_index].x;
+                            release_point.y = my_color_points[nearest_index].y;
+
+                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                            if (sens == 0) {               // Front
+                                goto_xy(x_topawn, y_topawn);
+                            } else {                       // Back
+                                goto_xy_back(x_topawn, y_topawn);
+                            }
+                        } else {
+                            // Find another place
+
+                        }
+
+                        has_pawn = GOTO_RELEASE;
+                    }
                 }
 
 
@@ -1466,7 +1537,7 @@ void loop()
 
                 PAWN_go_up();
                 pawn_stack = 0;
-                if (have_king == 1) {
+                if (have_king >= 1) {
                     release_priorities[nearest_index] = 99;
                     Serial3.print("h");
                 } else {
@@ -1480,67 +1551,129 @@ void loop()
             case BACK:
                 delta_motor.max_speed = DELTA_MAX_SPEED;
 
-                if (store_n_stack == 1) {
-                    x_topawn = my_color_points[6].x;
-                    y_topawn = my_color_points[6].y;
-                    release_point.x = my_color_points[6].x;
-                    release_point.y = my_color_points[6].y;
-                    nearest_index = 6;
+                has_pawn = NO_PAWN;
+                if (green_point_index == 0) {
+                    // CHercher les rois/reines que l'on aurait pas prit
 
-                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                    if (sens == 0) {                       // Front
-                        goto_xy(x_topawn, y_topawn);
-                    } else {                               // Back
-                        goto_xy_back(x_topawn, y_topawn);
-                    }
-                    Serial.println("prise roi stocke");
-                    has_pawn = TAKE_KING1;
                 } else {
-                    has_pawn = NO_PAWN;
-                    if (green_point_index == 0) {
+
+
+                    if (working_side == 1) {
+                        if (king_taken_our == 1) {         // Already take it
+                            if (queen_taken_our == 1) {    // Already take it
+// TODO
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+// TODO
+                            } else if (queen_taken_opponent == 1) {     // Already take the opponent's
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = taken_queen1.y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else {
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            }
+                        } else {                           // King not taken yet
+                            if (king_taken_opponent == 1) {
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = taken_king1.y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else if (queen_taken_our == 1) {
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else if (queen_taken_opponent == 1) {
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = taken_queen1.y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else {
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            }
+
+                        }
 
                     } else {
-                        green_point_index--;
-                        if (green_points[green_point_index].x < 0) {
-                            my_test_point.x = -800;
-                            my_test_point.y = green_points[green_point_index].y;
-                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                            //goto_xy(-800, green_points[green_point_index].y);
-                        } else {
-                            my_test_point.x = 800;
-                            my_test_point.y = green_points[green_point_index].y;
-                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                            //goto_xy(800, green_points[green_point_index].y);
+                        if (king_taken_opponent == 1) {    // Already take it
+                            if (queen_taken_opponent == 1) {    // Already take it
+// TODO
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+// TODO
+                            } else if (queen_taken_our == 1) {  // Already take the opponent's
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = taken_queen1.y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else {
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            }
+                        } else {                           // King not taken yet
+                            if (king_taken_our == 1) {
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = taken_king1.y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else if (queen_taken_opponent == 1) {
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else if (queen_taken_our == 1) {
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = taken_queen1.y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            } else {
+                                green_point_index--;
+                                my_test_point.x = working_side * color * 800;
+                                my_test_point.y = green_points[green_point_index].y;
+                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                //goto_xy(-800, green_points[green_point_index].y);
+                            }
+
                         }
+
+
                     }
-                    //has_pawn = NO_PAWN;
+
+/*
+                    if (green_points[green_point_index].x < 0) {
+                        my_test_point.x = -800;
+                        my_test_point.y = green_points[green_point_index].y;
+                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        //goto_xy(-800, green_points[green_point_index].y);
+                    } else {
+                        my_test_point.x = 800;
+                        my_test_point.y = green_points[green_point_index].y;
+                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        //goto_xy(800, green_points[green_point_index].y);
+                    }
+*/
                 }
-                break;
 
-            case TMP_PAWN:
-                PAWN_release_pawn();
-                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                delay(50);
-                if (store_n_stack == 1)
-                    set_new_command(&bot_command_delta, (-400));        // TO ADJUST
-                else
-                    set_new_command(&bot_command_delta, (-170));        // TO ADJUST
-
-                PAWN_go_up();
-                pawn_stack = 0;
-
-                if (have_king == 1) {
-                    release_priorities[nearest_index] = 30;
-                } else {
-                    release_priorities[nearest_index] = 20;
-                }
-                placed_pawn[placed_pawn_index].x = my_color_points[nearest_index].x;
-                placed_pawn[placed_pawn_index].y = my_color_points[nearest_index].y;
-                placed_pawn_index++;
-
-                have_king = 0;
-
-                has_pawn = BACK;
                 break;
 
             case RELEASE_BONUS:
@@ -1560,53 +1693,7 @@ void loop()
                 has_pawn = GOTO_RELEASE;
                 break;
 
-            case STACK:
-                PAWN_release_pawn();
-                set_new_command(&bot_command_delta, -20);
-                delay(100);
-                PAWN_go_down();
-                PAWN_grip_pawn();
-                release_priorities[9] = 3;
-                delay(100);
-                PAWN_mini_go_up();
 
-                //goto_xy(0, 1600);
-                goto_xy(-170, 1600);                       // POUR LES TESTS A LA MAISON
-
-                PAWN_go_up();
-                has_pawn = RELEASE_BONUS;
-                break;
-
-            case TAKE_KING1:
-                set_new_command(&bot_command_delta, (50)); // TO ADJUST
-                delay(200);
-                PAWN_go_down();
-                PAWN_grip_pawn();
-                delay(100);
-                PAWN_mini_go_up();
-                // Stack all the pawns on the bonus zone
-
-                x_topawn = my_color_points[9].x;
-                y_topawn = my_color_points[9].y;
-                release_point.x = my_color_points[9].x;
-                release_point.y = my_color_points[9].y;
-                nearest_index = 9;
-
-                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                if (sens == 0) {                           // Front
-                    goto_xy(x_topawn, y_topawn);
-                } else {                                   // Back
-                    goto_xy_back(x_topawn, y_topawn);
-                }
-                Serial.println("Goto the store pawn");
-
-
-
-                PAWN_go_up();
-
-                has_pawn = STACK;
-
-                break;
 
             case AVOIDING0:
 
@@ -3190,14 +3277,27 @@ void barCode_scan(void)
     Serial1.print(0x0D, BYTE);
 }
 
-/* Returns 0 if nothing, 1 if something */
+/* Returns 0 if nothing, 1 if king, 2 if queen */
 int barCode_checkifdata(void)
 {
     int result = 0;
+    if (Serial1.available()) {
+        if (Serial1.read() == 'Q')
+            result = 2;
+        else
+            result = 1;
+    }
     while (Serial1.available()) {
-        result = 1;
-        //Serial.print(Serial1.read()); // DEBUG
-        Serial1.read();
+
+        Serial.print(Serial1.read());                      // DEBUG
+        //Serial1.read();
     }
     return result;
+}
+
+void barCode_flush(void)
+{
+    while (Serial1.available()) {
+        Serial1.read();
+    }
 }

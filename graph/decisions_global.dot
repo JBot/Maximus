@@ -5,13 +5,17 @@ digraph G {
 	subgraph cluster_0 {
 		color=black
 		node [style=filled];
-		no_pawn1 [label = "No pawn"];
-	        goto_release1 [label = "Go to release"];
-        	go_back1 [label = "Go back"];
+		no_pawn1 [label = "No pawn", color = green];
+	        goto_release1 [label = "Go to release", color = green];
+        	go_back1 [label = "Go back", color = green];
+        	intermediate_release1 [label = "Intermediate release", color = green];
 
         	no_pawn1 -> no_pawn1 [label = "move done"];
 
-        	no_pawn1 -> goto_release1 [label = "pawn detected"];
+        	no_pawn1 -> goto_release1 [label = "1st pawn detected"];
+		
+                no_pawn1 -> intermediate_release1 [label = "2nd pawn detected"];		
+        	intermediate_release1 -> goto_release1 [label = "move done"];
 
         	goto_release1 -> go_back1 [label = "move done"];
 
@@ -21,43 +25,32 @@ digraph G {
 
 	subgraph cluster_1 {
 		node [style=filled];
-		no_pawn2  [label = "No pawn"];
+		no_pawn2  [label = "No pawn", color = green];
 		take_pawn2  [label = "Take pawn", color = green];
 		go_back2  [label = "Go back", color = green];
-		back2  [label = "Back", color = green];
-		find_pawn2  [label = "Find pawn"];
-		tmp_pawn2  [label = "Tmp pawn"];
-		stack2  [label = "Stack"];
-		release_on_bonus2  [label = "Release on bonus"];
-		release2  [label = "Release"];
+		back2  [label = "Back"];
+		find_pawn2  [label = "Find pawn", color = green];
+		release_on_bonus2  [label = "Release on bonus", color = green];
+		release2  [label = "Release", color = green];
 		any_states2  [label = "Any state", color = red];
 		avoiding2  [label = "Avoiding", color = red];
-		take_king2  [label = "Take king"];
 
 		
 		no_pawn2 -> take_pawn2 [label = "move done"];
 		take_pawn2 -> go_back2 [label = "move done"];
 		
-		go_back2 -> tmp_pawn2 [label = "got 2nd pawn \n& king stored"];
-		go_back2 -> tmp_pawn2 [label = "2nd pawn"];
-		go_back2 -> tmp_pawn2 [label = "got king \n& NO pawn stored"];
-		go_back2 -> stack2 [label = "got king \n& pawn stored"];
-		go_back2 -> release_on_bonus2 [label = "first pawn"];
-		go_back2 -> find_pawn2 [label = "first king"];
+		go_back2 -> release2 [label = "pawn"];
+		go_back2 -> release_on_bonus2 [label = "queen"];
+		go_back2 -> find_pawn2 [label = "king"];
+		
+		find_pawn2 -> find_pawn2 [label = "pawn \nnot found"];
 
 		find_pawn2 -> release2 [label = "pawn found"];	
 		release2 -> back2 [label = "move done"];
 		back2 -> no_pawn2 [label = "move done"];
 		
-		tmp_pawn2 -> back2 [label = "move done"];		
-
-		stack2 -> release_on_bonus2;
-		
 		release_on_bonus2 -> release2 [label = "move done"];
 		
-		back2 -> take_king2;
-		take_king2 -> stack2;
-
 		any_states2 -> avoiding2;
 
 		label = "Tower phase";
