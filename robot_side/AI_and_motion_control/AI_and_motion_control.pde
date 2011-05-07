@@ -1520,8 +1520,8 @@ void loop()
                         release_point.x = my_color_points[nearest_index].x;
                         release_point.y = my_color_points[nearest_index].y;
 
-                        //goto_xy(0, 1600);
-                        goto_xy(-170, 1600);               // POUR LES TESTS A LA MAISON
+                        goto_xy(0, 1600);
+                        //goto_xy(-170, 1600);               // POUR LES TESTS A LA MAISON
 
                         has_pawn = RELEASE_BONUS;
                     } else {
@@ -1543,7 +1543,7 @@ void loop()
                     }
                 } else {                                   // I have a pawn
                     if (working_side == 1) {               // On our side
-                        if (release_priorities[11] == 2) { // Nothing on it
+                        if (release_priorities[11] == 1) { // Nothing on it
                             nearest_index = 11;
                             x_topawn = my_color_points[nearest_index].x;
                             y_topawn = my_color_points[nearest_index].y;
@@ -1557,7 +1557,7 @@ void loop()
                                 goto_xy_back(x_topawn, y_topawn);
                             }
                             working_side = -1;
-                        } else if (release_priorities[5] == 2) {        // Nothing on it
+                        } else if (release_priorities[5] == 1) {        // Nothing on it
                             nearest_index = 5;
                             x_topawn = my_color_points[nearest_index].x;
                             y_topawn = my_color_points[nearest_index].y;
@@ -1579,7 +1579,7 @@ void loop()
                         working_side = -1;                 // Go to the other side
                         has_pawn = GOTO_RELEASE;
                     } else {
-                        if (release_priorities[11] == 2) { // Nothing on it
+                        if (release_priorities[11] == 1) { // Nothing on it
                             nearest_index = 11;
                             x_topawn = my_color_points[nearest_index].x;
                             y_topawn = my_color_points[nearest_index].y;
@@ -1596,7 +1596,7 @@ void loop()
                             } else {                       // Back
                                 goto_xy_back(x_topawn, y_topawn);
                             }
-                        } else if (release_priorities[5] == 2) {        // Nothing on it
+                        } else if (release_priorities[5] == 1) {        // Nothing on it
                             nearest_index = 5;
                             x_topawn = my_color_points[nearest_index].x;
                             y_topawn = my_color_points[nearest_index].y;
@@ -1657,6 +1657,9 @@ void loop()
                     release_priorities[nearest_index] = 20;
                     has_pawn = GO_BACK;
                 }
+                placed_pawn[placed_pawn_index].x = my_color_points[nearest_index].x;
+                placed_pawn[placed_pawn_index].y = my_color_points[nearest_index].y;
+                placed_pawn_index++;
 
 
                 break;
