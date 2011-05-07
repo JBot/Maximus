@@ -934,7 +934,7 @@ void loop()
     }
 
 
-    if (global_time_counter > 100) {
+    if (global_time_counter > 50) {
         //Serial.println("Alive");
         global_time_counter = 0;
     }
@@ -1009,8 +1009,8 @@ void loop()
                         release_point.y = my_color_points[16].y;
                         nearest_index = 16;
 
-                        //goto_xy(0, 1600);
-                        goto_xy(-170, 1600);               // POUR LES TESTS A LA MAISON
+                        goto_xy(0, 1600);
+                        //goto_xy(-170, 1600);               // POUR LES TESTS A LA MAISON
 
                         Serial.println("Second pion");
                         has_pawn = INTERMEDIATE_RELEASE;
@@ -1082,6 +1082,7 @@ void loop()
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 if (nearest_index == 16) {                 // Phase 1 done
                     green_point_index = 3;
+                    my_test_point.y = green_points[green_point_index].y;
                     if (green_points[green_point_index].x < 0)
                         goto_xy(-800, green_points[green_point_index].y);
                     else
@@ -1349,6 +1350,30 @@ void loop()
                 have_king = test_barcode;
             }
 
+
+            sensorValue = analogRead(PAWN_SENSOR);
+            pawn_distance = (pawn_distance + (convert_shortIR_value(sensorValue)) * 2) / 3;
+            if (pawn_distance > 30 || pawn_distance < 0)
+                pawn_distance = 30;
+
+
+            if ((pawn_distance < 6)) {
+
+                if (nb_check == 2) {
+
+                    stop_robot();
+
+                    Serial.println("Take pawn");
+                    set_new_command(&bot_command_delta, -5);
+
+                    nb_check = 0;
+                } else {
+                    nb_check++;
+                }
+
+            }
+
+
         }
 
 
@@ -1396,7 +1421,7 @@ void loop()
             switch (has_pawn) {
 
             case NO_PAWN:
-
+                Serial.println("NO_PAWN");
                 barCode_flush();
 
 /*                if (green_points[green_point_index].x < 0)
@@ -1404,7 +1429,7 @@ void loop()
                 else
                     goto_xy(900, green_points[green_point_index].y);
 */
-                goto_xy(working_side * green_points[green_point_index].x, green_points[green_point_index].y);
+                goto_xy(working_side * green_points[green_point_index].x, my_test_point.y);
 
                 PAWN_release_for_greenzone();
                 PAWN_go_down();
@@ -1419,7 +1444,7 @@ void loop()
                 break;
 
             case TAKE_PAWN:
-
+                Serial.println("TAKE_PAWN");
                 PAWN_grip_pawn();
                 delay(150);
                 pawn_stack++;
@@ -1480,6 +1505,7 @@ void loop()
                 break;
 
             case GO_BACK:
+                Serial.println("GO_BACK");
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 release_pawn = 1;
 
@@ -1625,6 +1651,7 @@ void loop()
                 break;
 
             case FIND_PAWN:
+                Serial.println("FIND_PAWN");
                 way_point_index++;
                 goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
                 nearest_index = 0;
@@ -1632,7 +1659,7 @@ void loop()
                 break;
 
             case GOTO_RELEASE:
-
+                Serial.println("GOTO_RELEASE");
                 if (release_pawn == 1) {
                     PAWN_release_pawn();
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
@@ -1665,6 +1692,7 @@ void loop()
                 break;
 
             case BACK:
+                Serial.println("BACK");
                 delta_motor.max_speed = DELTA_MAX_SPEED;
 
                 has_pawn = NO_PAWN;
@@ -1793,6 +1821,7 @@ void loop()
                 break;
 
             case RELEASE_BONUS:
+                Serial.println("RELEASE_BONUS");
                 x_topawn = my_color_points[16].x;
                 y_topawn = my_color_points[16].y;
                 release_point.x = my_color_points[16].x;
@@ -1812,7 +1841,7 @@ void loop()
 
 
             case AVOIDING0:
-
+                Serial.println("AVOIDING0");
                 avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
                 my_angle = angle_coord(&maximus, release_point.x, release_point.y);
 
@@ -1825,12 +1854,13 @@ void loop()
                 has_pawn = AVOIDING1;
                 break;
             case AVOIDING1:
-
+                Serial.println("AVOIDING1");
                 avoid_object(&maximus, &release_point, avoid_radius + 50);
 
                 has_pawn = AVOIDING2;
                 break;
             case AVOIDING2:
+                Serial.println("AVOIDING2");
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 alpha_motor.max_speed = ALPHA_MAX_SPEED;
 
@@ -2535,6 +2565,7 @@ void read_RoboClaw_voltage(char addr)
 {
     char checkSUM;
     transmit_status = 0;
+    //Serial.println("Voltage from RoboClaw");
 
     Serial2.print(addr, BYTE);
     Serial2.print(24, BYTE);
@@ -2707,6 +2738,12 @@ void goto_xy(double x, double y)
     dist = distance_coord(&maximus, x, y);
     set_new_command(&prev_bot_command_delta, dist);
     bot_command_delta.state = WAITING_BEGIN;
+
+    Serial.print(".Go to :");
+    Serial.print((int) x);
+    Serial.print(" ");
+    Serial.println((int) y);
+
 }
 
 void goto_xy_back(double x, double y)
