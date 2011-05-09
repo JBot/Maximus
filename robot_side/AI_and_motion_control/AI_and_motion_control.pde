@@ -1663,7 +1663,7 @@ void loop()
                 if (release_pawn == 1) {
                     PAWN_release_pawn();
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                    delay(50);
+                    delay(100);
                     set_new_command(&bot_command_delta, (-200));        // TO ADJUST
 
                     PAWN_go_up();
@@ -1678,7 +1678,7 @@ void loop()
                     has_pawn = BACK;
                 } else {
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                    delay(50);
+                    delay(100);
                     set_new_command(&bot_command_delta, (-200));        // TO ADJUST
 
                     release_priorities[nearest_index] = 20;
