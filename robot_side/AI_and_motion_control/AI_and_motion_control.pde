@@ -967,7 +967,7 @@ void loop()
 
             if ((sensorValue == HIGH)) {
 
-                if (nb_check == 2) {
+                if (nb_check == 0) {
 
                     stop_robot();
 
@@ -1188,7 +1188,7 @@ void loop()
 
             if ((sensorValue == HIGH)) {
 
-                if (nb_check == 2) {
+                if (nb_check == 0) {
 
                     stop_robot();
 
@@ -1248,7 +1248,7 @@ void loop()
 
             if ((sensorValue == HIGH)) {
 
-                if (nb_check == 2) {
+                if (nb_check == 0) {
 
                     stop_robot();
 
@@ -1304,7 +1304,7 @@ void loop()
 
             if ((sensorValue == HIGH)) {
 
-                if (nb_check == 2) {
+                if (nb_check == 0) {
 
                     Serial.println("PAWN SEEN");
 
@@ -1346,7 +1346,7 @@ void loop()
 
             if ((sensorValue == HIGH)) {
 
-                if (nb_check == 2) {
+                if (nb_check == 0) {
 
                     stop_robot();
 
@@ -1437,6 +1437,11 @@ void loop()
                 if (pawn_found == 1) {
                     pawn_stack++;
                 } else {                                   // Nothing has been take
+                    sensorValue = digitalRead(PAWN_SENSOR);
+
+                    if ((sensorValue == HIGH)) {
+                        pawn_stack++;
+                    }
 
                 }
                 Serial.print(pawn_distance);
@@ -1447,6 +1452,7 @@ void loop()
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK_PAWN;
                 set_new_command(&bot_command_delta, (-330));    //350
 
+                // To store the king and queen position
                 if (have_king == 1) {                      // I have a king
                     if (working_side == 1) {               // On our side
                         king_taken_our = 1;
