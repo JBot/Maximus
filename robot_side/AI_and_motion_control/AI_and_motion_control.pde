@@ -433,7 +433,8 @@ ISR(TIMER1_OVF_vect)
     if (color_serial_in == 'O')
         time_in_match++;
 
-    if (time_in_match > 10970) {                           // End of the match
+//    if (time_in_match > 10970) {                           // End of the match
+    if (time_in_match > 15970) {                           // End of the match
         if (time_in_match < 21900) {
             PAWN_release_pawn();
             Serial.println("STOP ROBOT");
@@ -1232,8 +1233,16 @@ void loop()
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
         if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
-            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
-            prev_has_pawn = has_pawn;
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
+                                                                                                  || (has_pawn == AVOIDING0)
+                                                                                                  || (has_pawn == AVOIDING1)
+                                                                                                  || (has_pawn == AVOIDING2))) {
+
+            if ((has_pawn == AVOIDING0) || (has_pawn == AVOIDING1) || (has_pawn == AVOIDING2)) {
+
+            } else {
+                prev_has_pawn = has_pawn;
+            }
 
             struct Point test_point;
             test_point = estimate_center(&maximus);
@@ -1283,7 +1292,7 @@ void loop()
                     // We want to go on opponent side, but opponent is in the middle
                     stop_robot();
                     delay(200);
-
+                    Serial.println("Opponent : middle, want : opponent side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
@@ -1297,13 +1306,13 @@ void loop()
                     // We want to go on opponent side, but opponent is in the middle
                     stop_robot();
                     delay(200);
-
+                    Serial.println("Opponent : middle, want : opponent side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
 
-                    goto_xy(color * 300, 400);
+                    goto_xy(color * 300, 450);
                     my_test_point.x = (-1) * color * 300;
                     my_test_point.y = 350;
                     has_pawn = AVOIDING_OPP1;
@@ -1311,7 +1320,7 @@ void loop()
                     // We want to go on our side, but opponent is in the middle
                     stop_robot();
                     delay(200);
-
+                    Serial.println("Opponent : middle, want : our side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
@@ -1319,13 +1328,13 @@ void loop()
 
                     goto_xy((-1) * color * 300, 350);
                     my_test_point.x = color * 300;
-                    my_test_point.y = 400;
+                    my_test_point.y = 450;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 2)) {
                     // We want to go on our side, but opponent is in the middle
                     stop_robot();
                     delay(200);
-
+                    Serial.println("Opponent : middle, want : our side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
@@ -1339,7 +1348,7 @@ void loop()
                     // We are in our side, and the opponent too
                     stop_robot();
                     delay(200);
-
+                    Serial.println("Opponent : our side, want : our side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -50);
@@ -1410,7 +1419,7 @@ void loop()
                     // We are in opponent side, and the opponent too
                     stop_robot();
                     delay(200);
-
+                    Serial.println("Opponent : opponent side, want : opponent side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
@@ -1832,7 +1841,6 @@ void loop()
                     }
 
                 }
-                Serial.print(pawn_distance);
                 Serial.println("TAKE_PAWN");
                 PAWN_grip_pawn();
                 delay(250);
@@ -1876,6 +1884,8 @@ void loop()
                             taken_queen2.x = green_points[green_point_index].x;
                             taken_queen2.y = green_points[green_point_index].y;
                         }
+
+
                     } else {
                         queen_taken_opponent = 1;
 
@@ -1889,7 +1899,10 @@ void loop()
                     }
                 }
 
-
+                if (green_point_index == 1) {
+                    direct_stop_robot();
+                    reinit_x_axis(&maximus);
+                }
 
                 PAWN_go_up();
 
@@ -3984,6 +3997,28 @@ void reinit_y_axis(struct robot *my_robot)
 
 }
 
+void reinit_x_axis(struct robot *my_robot)
+{
+    set_new_command(&bot_command_alpha, ((-1) * working_side * PI * RAD2DEG));
+    delay(1600);
+    set_new_command(&bot_command_delta, -1000);
+
+    while ((digitalRead(LEFT_REAR_SENSOR) == 0) || (digitalRead(RIGHT_REAR_SENSOR) == 0)) {
+        delay(100);
+
+    }
+    delay(100);
+    // Set the X and theta values
+    my_robot->pos_X = (-1) * working_side * (1500 - DISTANCE_REAR_WHEELS);
+    if (working_side == -1) {
+        my_robot->theta = PI;
+    } else {
+        my_robot->theta = 0;
+    }
+
+    set_new_command(&bot_command_delta, 400);
+    delay(100);
+}
 
 
 
