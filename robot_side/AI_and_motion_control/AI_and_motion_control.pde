@@ -148,8 +148,11 @@ void delay_ms(uint16_t millis)
 #define HOME                    -120
 //#define HOME                    0
 //#define SERIAL_COMMANDS         0
-#define OPPONENT_DETECTION      0
-//#define HUGE_STACKS             0
+//#define OPPONENT_DETECTION      0
+#define HUGE_STACKS             0
+#define ENDLESS_GAME            0
+
+
 
 /***********************/
 /* Specific structures */
@@ -338,6 +341,10 @@ struct Point subzones[6];
 struct Point avoid_points[2];
 int opponent_subzone = 0;
 
+int avoid_index = 0;
+
+int already_reinit = 0;
+
 /***********************/
 /* INTERRUPT FUNCTIONS */
 /***********************/
@@ -433,16 +440,23 @@ ISR(TIMER1_OVF_vect)
     if (color_serial_in == 'O')
         time_in_match++;
 
-//    if (time_in_match > 10970) {                           // End of the match
-    if (time_in_match > 15970) {                           // End of the match
+    if (time_in_match > 10970) {                           // End of the match
         if (time_in_match < 21900) {
+#ifdef ENDLESS_GAME
+
+#else
             PAWN_release_pawn();
+#endif
             Serial.println("STOP ROBOT");
             Serial3.print("e");
         }
         time_in_match = 21901;
 
+#ifdef ENDLESS_GAME
+
+#else
         stop_robot();
+#endif
         has_pawn = FIN_MATCH;
     }
 
@@ -944,7 +958,7 @@ void loop()
 
 
     if (global_time_counter > 50) {
-        //Serial.println("Alive");
+        Serial.println("Alive");
         global_time_counter = 0;
     }
 
@@ -961,7 +975,7 @@ void loop()
         /* Static phase to secure the first 2 pawns */
     case SECURE_PAWN:
 
-
+/*
         Wire.beginTransmission(0x70);
         Wire.send(0x02);
         Wire.endTransmission();
@@ -981,7 +995,7 @@ void loop()
 
         sense_opponent_ir();
 
-/*
+
 #ifdef OPPONENT_DETECTION
         // OPPONENT DETECTION 
         if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
@@ -1124,13 +1138,14 @@ void loop()
             switch (has_pawn) {
 
             case NO_PAWN:
-
+                Serial.println("NO_PAWN");
                 goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
-
+/*
                 Serial.print(".Go to :");
                 Serial.print(way_points[way_point_index].x);
                 Serial.print(" ");
                 Serial.println(way_points[way_point_index].y);
+*/
                 way_point_index++;
 
 
@@ -1138,6 +1153,7 @@ void loop()
                 break;
 
             case INTERMEDIATE_RELEASE:
+                Serial.println("INTERMEDIATE_RELEASE");
                 sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                 if (sens == 0) {                           // Front
                     goto_xy(x_topawn, y_topawn);
@@ -1149,6 +1165,7 @@ void loop()
                 break;
 
             case GOTO_RELEASE:                            // The robot have a pawn and is on his release point
+                Serial.println("GOTO_RELEASE");
                 PAWN_release_for_greenzone();
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                 set_new_command(&bot_command_delta, (-150));    // TO ADJUST
@@ -1168,6 +1185,7 @@ void loop()
                 break;
 
             case GO_BACK:
+                Serial.println("GO_BACK");
                 PAWN_release_pawn();
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 if (nearest_index == 16) {                 // Phase 1 done
@@ -1899,9 +1917,10 @@ void loop()
                     }
                 }
 
-                if (green_point_index == 1) {
+                if ((green_point_index == 1) && (already_reinit == 0)) {
                     direct_stop_robot();
                     reinit_x_axis(&maximus);
+                    already_reinit = 1;
                 }
 
                 PAWN_go_up();
@@ -2495,16 +2514,21 @@ void loop()
 
             case AVOIDING0:
                 Serial.println("AVOIDING0");
-                avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
-                my_angle = angle_coord(&maximus, release_point.x, release_point.y);
+                if ((avoid_index == 5) || (avoid_index == 11)) {
+                    has_pawn = prev_has_pawn;
+                    goto_xy(my_test_point.x, my_test_point.y);
+                } else {
+                    avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                    my_angle = angle_coord(&maximus, release_point.x, release_point.y);
 
-                if (my_angle < 0) {                        // Avoid by left
-                    set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
-                } else {                                   // Avoid by right
-                    set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                    if (my_angle < 0) {                    // Avoid by left
+                        set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
+                    } else {                               // Avoid by right
+                        set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                    }
+
+                    has_pawn = AVOIDING1;
                 }
-
-                has_pawn = AVOIDING1;
                 break;
             case AVOIDING1:
                 Serial.println("AVOIDING1");
@@ -3931,26 +3955,40 @@ void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int 
                 result.x = tab[i].x;
                 result.y = tab[i].y;
                 result2 = 1;
+                avoid_index = 0;
             }
         }
 
     }
 
+    if ((result.x == my_color_points[5].x) && (result.y == my_color_points[5].y)) {
+        avoid_index = 5;
+    }
+    if ((result.x == my_color_points[11].x) && (result.y == my_color_points[11].y)) {
+        avoid_index = 11;
+    }
+
     if (result2 == 1) {
         double ang, dist;
         Serial.println("Must avoid pawn");
+        //PAWN_close_gripper();
         release_point.x = result.x;
         release_point.y = result.y;
 
-        ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
-        set_new_command(&bot_command_alpha, ang);
+        if (avoid_index == 5 || avoid_index == 11) {
+            goto_xy((-1) * color * 625, 875);
+            has_pawn = AVOIDING0;
+        } else {
+            ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
+            set_new_command(&bot_command_alpha, ang);
 
-        dist = distance_coord(&maximus, result.x, result.y) - 280;      // TO REDUCE LATER
-        set_new_command(&prev_bot_command_delta, dist);
-        bot_command_delta.state = WAITING_BEGIN;
-        //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
-        prev_has_pawn = has_pawn;
-        has_pawn = AVOIDING0;
+            dist = distance_coord(&maximus, result.x, result.y) - 280;  // TO REDUCE LATER
+            set_new_command(&prev_bot_command_delta, dist);
+            bot_command_delta.state = WAITING_BEGIN;
+            //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+            prev_has_pawn = has_pawn;
+            has_pawn = AVOIDING0;
+        }
     } else {
         goto_xy(dest->x, dest->y);
         //has_pawn = ;
@@ -4000,14 +4038,18 @@ void reinit_y_axis(struct robot *my_robot)
 void reinit_x_axis(struct robot *my_robot)
 {
     set_new_command(&bot_command_alpha, ((-1) * working_side * PI * RAD2DEG));
-    delay(1600);
+    delay(1000);
+    while ((bot_command_alpha.state != COMMAND_DONE)) {
+        delay(100);
+    }
     set_new_command(&bot_command_delta, -1000);
-
+    delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
     while ((digitalRead(LEFT_REAR_SENSOR) == 0) || (digitalRead(RIGHT_REAR_SENSOR) == 0)) {
         delay(100);
 
     }
-    delay(100);
+    delay(200);
+
     // Set the X and theta values
     my_robot->pos_X = (-1) * working_side * (1500 - DISTANCE_REAR_WHEELS);
     if (working_side == -1) {
@@ -4015,7 +4057,9 @@ void reinit_x_axis(struct robot *my_robot)
     } else {
         my_robot->theta = 0;
     }
+    delay(100);
 
+    delta_motor.max_speed = DELTA_MAX_SPEED;
     set_new_command(&bot_command_delta, 400);
     delay(100);
 }
@@ -4046,6 +4090,12 @@ void PAWN_grip_pawn(void)
     //gripServo_left.write(135);
     gripServo_right.write(65);
     gripServo_left.write(115);
+}
+
+void PAWN_close_gripper(void)
+{
+    gripServo_right.write(50);
+    gripServo_left.write(130);
 }
 
 void PAWN_release_pawn(void)
@@ -4115,13 +4165,13 @@ void PAWN_go_down(void)
         delay_ms(5);
         buttonState = digitalRead(LIFT_SWITCH_UP);
         if ((buttonState == 0) && (error == 0)) {
-            set_new_command(&bot_command_delta, -25);
+            set_new_command(&bot_command_delta, -100);
             lifter_servo.write(117);
             delay(300);
             error = 1;
         } else if ((buttonState == 0) && (error == 1)) {
             set_new_command(&bot_command_delta, -20);
-            lifter_servo.write(75);
+            lifter_servo.write(55);
             delay(300);
             error = 0;
         }
@@ -4131,6 +4181,11 @@ void PAWN_go_down(void)
     }
     // Stop
     lifter_servo.write(90);
+
+    if (error == 1) {
+        set_new_command(&bot_command_delta, 110);
+        delay(700);
+    }
     //analogWrite(LIFT_MOTOR_PWM, 0);
 
 }
