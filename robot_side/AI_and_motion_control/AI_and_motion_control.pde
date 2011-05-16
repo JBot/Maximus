@@ -223,8 +223,8 @@ int right_diff = 0;
 
 double total_distance = 0.0;
 
-unsigned int entier;
-char display1, display2, display3, display4, display5, display6, display7;
+//unsigned int entier;
+//char display1, display2, display3, display4, display5, display6, display7;
 
 char serial_command;
 
@@ -236,14 +236,14 @@ Servo gripServo_left;
 Servo lifter_servo;
 
 // IR sensors
-volatile int front_distance_down_left = 50;
-volatile int front_distance_down_middle = 50;
-volatile int front_distance_down_right = 50;
+//volatile int front_distance_down_left = 50;
+//volatile int front_distance_down_middle = 50;
+//volatile int front_distance_down_right = 50;
 volatile int pawn_distance = 30;
 int front_distance_up_left = 50;
 int front_distance_up_right = 50;
-int side_king_sensor = 60;
-int side_king_sensor2 = 0;
+//int side_king_sensor = 60;
+//int side_king_sensor2 = 0;
 int opponent_sensor = 60;
 
 int side_sensor_on = 1;
@@ -280,8 +280,8 @@ char turn_counter = 0;
 
 char pawn_stack = 0;                                       // used to know how many pawn we are stacking
 char robot_mode = SECURE_PAWN;                             // used to switch between the different phases
-char beacon_direction = BEACON_NORTH;                      // used to know where is the opponent
-char ajusting_pawn = 0;                                    // To know if we are trying to catch a pawn moving right and left to center it
+//char beacon_direction = BEACON_NORTH;                      // used to know where is the opponent
+//char ajusting_pawn = 0;                                    // To know if we are trying to catch a pawn moving right and left to center it
 char go_grab_pawn = 0;
 char nb_check = 0;
 char nb_check_color = 0;
@@ -439,6 +439,9 @@ ISR(TIMER1_OVF_vect)
 
     if (color_serial_in == 'O')
         time_in_match++;
+
+    if ((time_in_match % 200) == 1)
+        Serial.println("Alive2");
 
     if (time_in_match > 10970) {                           // End of the match
         if (time_in_match < 21900) {
@@ -738,6 +741,8 @@ void setup()
     delay_ms(1000);
     //PAWN_go_up();
 
+    Serial.println("First init done");
+
 //lifter_servo.attach(LIFT_MOTOR_PWM);
 //    lifter_servo.write(90);
 
@@ -959,6 +964,7 @@ void loop()
 
     if (global_time_counter > 50) {
         Serial.println("Alive");
+        Serial3.print("h");
         global_time_counter = 0;
     }
 
@@ -1304,7 +1310,7 @@ void loop()
                 }
 
 
-
+                Serial3.print("o");
 
                 if ((is_in_our_side(&maximus) == 1) && (working_side == -1) && (opponent_subzone == 2)) {
                     // We want to go on opponent side, but opponent is in the middle
@@ -3279,7 +3285,7 @@ void read_RoboClaw_voltage(char addr)
 {
     char checkSUM;
     transmit_status = 0;
-    //Serial.println("Voltage from RoboClaw");
+    Serial.println("Volt RoboClaw");
 
     Serial2.print(addr, BYTE);
     Serial2.print(24, BYTE);
@@ -3291,7 +3297,7 @@ void check_RoboClaw_response(char addr)
 {
     transmit_status = 0;
     if (Serial2.available() >= 3) {
-        //Serial.println("RoboClaw responding");
+        Serial.println("RoboClaw responding");
         Serial2.read();
         Serial2.read();
         Serial2.read();
@@ -3617,6 +3623,7 @@ signed long convert_ticks2dist(signed long ticks)
     return (ticks / TICK_PER_MM_RIGHT);
 }
 
+/*
 void read_down_IR(void)
 {
     int sensorValue = 0;
@@ -3642,7 +3649,7 @@ void read_down_IR(void)
     if (front_distance_down_right > 80)
         front_distance_down_right = 80;
 }
-
+*/
 void sense_opponent_ir(void)
 {
     int sensorValue = 0;
@@ -4193,7 +4200,7 @@ void PAWN_go_down(void)
 /************************************/
 /* COMMUNICATION WITH BEACON MODULE */
 /************************************/
-void BEACON_get_direction(void)
+/*void BEACON_get_direction(void)
 {
     if (BEACON_NORTH_PIN) {
         beacon_direction = BEACON_NORTH;
@@ -4205,7 +4212,7 @@ void BEACON_get_direction(void)
         beacon_direction = BEACON_WEST;
     }
 }
-
+*/
 
 /**************************************/
 /* COMMUNICATION WITH BARCODE SCANNER */
