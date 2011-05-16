@@ -239,7 +239,7 @@ Servo lifter_servo;
 //volatile int front_distance_down_left = 50;
 //volatile int front_distance_down_middle = 50;
 //volatile int front_distance_down_right = 50;
-volatile int pawn_distance = 30;
+//volatile int pawn_distance = 30;
 int front_distance_up_left = 50;
 int front_distance_up_right = 50;
 //int side_king_sensor = 60;
@@ -255,20 +255,20 @@ char has_pawn = NO_PAWN;
 char prev_has_pawn = NO_PAWN;
 
 
-struct Point red_points[18];
-struct Point blue_points[18];
-struct Point green_points[10];
+struct Point red_points[20];
+struct Point blue_points[20];
+struct Point green_points[20];
 int green_point_index = 0;
 
 struct Point *my_color_points;
-int release_priorities[18];
+int release_priorities[25];
 
 int nearest_index = 0;
 
-struct Point way_points[20];
+struct Point way_points[25];
 int way_point_index = 0;
 
-struct Point placed_pawn[10];
+struct Point placed_pawn[20];
 int placed_pawn_index = 0;
 
 struct Point release_point;
@@ -282,10 +282,10 @@ char pawn_stack = 0;                                       // used to know how m
 char robot_mode = SECURE_PAWN;                             // used to switch between the different phases
 //char beacon_direction = BEACON_NORTH;                      // used to know where is the opponent
 //char ajusting_pawn = 0;                                    // To know if we are trying to catch a pawn moving right and left to center it
-char go_grab_pawn = 0;
+//char go_grab_pawn = 0;
 char nb_check = 0;
-char nb_check_color = 0;
-char sensor_off = 0;                                       // To put the sensor in offmode
+//char nb_check_color = 0;
+//char sensor_off = 0;                                       // To put the sensor in offmode
 
 volatile char transmit_status = 1;                         // 1 if OK / 0 if not finished
 
@@ -337,8 +337,8 @@ int pawn_found = 0;
 int our_green_zone_empty = 0;                              // To know if our green zone is empty
 int opp_green_zone_empty = 0;                              // To know if the opponent's green zone is empty
 
-struct Point subzones[6];
-struct Point avoid_points[2];
+struct Point subzones[10];
+struct Point avoid_points[4];
 int opponent_subzone = 0;
 
 int avoid_index = 0;
@@ -949,7 +949,7 @@ void loop()
     // Place your code here
     int sensorValue = 0;
 
-
+/*
     if (global_time_counter == 8) {
         if (transmit_status == 1) {
             read_RoboClaw_voltage(128);
@@ -960,11 +960,11 @@ void loop()
             check_RoboClaw_response(128);
         }
     }
-
+*/
 
     if (global_time_counter > 50) {
         Serial.println("Alive");
-        Serial3.print("h");
+        //Serial3.print("h");
         global_time_counter = 0;
     }
 
@@ -1080,7 +1080,7 @@ void loop()
                     delta_motor.max_speed = 20000;
 
                     Serial.println("Take pawn");
-                    go_grab_pawn = 0;
+//                    go_grab_pawn = 0;
 
                     delay(100);
                     set_new_command(&bot_command_delta, 50);
@@ -1571,7 +1571,7 @@ void loop()
                     delta_motor.max_speed = 20000;
 
                     Serial.println("Take pawn");
-                    go_grab_pawn = 0;
+//                    go_grab_pawn = 0;
 
                     delay(100);
                     set_new_command(&bot_command_delta, 20);
@@ -1629,7 +1629,7 @@ void loop()
                     delta_motor.max_speed = 20000;
 
                     Serial.println("Take pawn");
-                    go_grab_pawn = 0;
+//                    go_grab_pawn = 0;
 
                     delay(100);
                     set_new_command(&bot_command_delta, 20);
@@ -1951,10 +1951,38 @@ void loop()
 
                         if (working_side == 1) {           // On our side
 #ifdef HUGE_STACKS
-                            way_point_index = 3;
+/*                            way_point_index = 3;
                             goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
 
                             has_pawn = FIND_PAWN;
+*/
+                            if (release_priorities[12] >= 10) { // if a pawn is stored
+                                nearest_index = 12;
+                                x_topawn = my_color_points[nearest_index].x;
+                                y_topawn = my_color_points[nearest_index].y;
+                                release_point.x = my_color_points[nearest_index].x;
+                                release_point.y = my_color_points[nearest_index].y;
+
+
+                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                                if (sens == 0) {           // Front
+                                    goto_xy(x_topawn, y_topawn);
+                                } else {                   // Back
+                                    goto_xy_back(x_topawn, y_topawn);
+                                }
+                                nearest_index = 16;
+                                x_topawn = my_color_points[nearest_index].x;
+                                y_topawn = my_color_points[nearest_index].y;
+                                release_point.x = my_color_points[nearest_index].x;
+                                release_point.y = my_color_points[nearest_index].y;
+                                has_pawn = STACK;
+                            } else {
+                                way_point_index = 3;
+                                goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+
+                                has_pawn = FIND_PAWN;
+                            }
+
 #else
                             nearest_index = 16;
                             x_topawn = my_color_points[nearest_index].x;
@@ -2037,6 +2065,7 @@ void loop()
                             // TODO
                             if (release_priorities[12] >= 10) { // if a pawn is stored
 #ifdef HUGE_STACKS
+/*
                                 nearest_index = 12;
                                 x_topawn = my_color_points[nearest_index].x;
                                 y_topawn = my_color_points[nearest_index].y;
@@ -2056,6 +2085,21 @@ void loop()
                                 release_point.x = my_color_points[nearest_index].x;
                                 release_point.y = my_color_points[nearest_index].y;
                                 has_pawn = STACK;
+*/
+                                nearest_index = 0;
+                                x_topawn = my_color_points[nearest_index].x;
+                                y_topawn = my_color_points[nearest_index].y;
+                                release_point.x = my_color_points[nearest_index].x;
+                                release_point.y = my_color_points[nearest_index].y;
+
+                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                                if (sens == 0) {           // Front
+                                    goto_xy(x_topawn, y_topawn);
+                                } else {                   // Back
+                                    goto_xy_back(x_topawn, y_topawn);
+                                }
+
+                                has_pawn = GOTO_RELEASE;
 #else
                                 nearest_index = 0;
                                 x_topawn = my_color_points[nearest_index].x;
@@ -2497,22 +2541,39 @@ void loop()
 
             case STACK:
                 Serial.println("STACK");
+
                 PAWN_release_pawn();
                 delay(100);
                 PAWN_go_down();
                 PAWN_grip_pawn();
                 delay(100);
 
-                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                if (sens == 0) {                           // Front
-                    goto_xy(x_topawn, y_topawn);
-                } else {                                   // Back
-                    goto_xy_back(x_topawn, y_topawn);
+                if (nearest_index == 16) {
+                    nearest_index = 16;
+                    x_topawn = my_color_points[nearest_index].x;
+                    y_topawn = my_color_points[nearest_index].y;
+                    release_point.x = my_color_points[nearest_index].x;
+                    release_point.y = my_color_points[nearest_index].y;
+
+                    //goto_xy(0, 1600);
+                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
+
+                    PAWN_go_up();
+
+                    has_pawn = RELEASE_BONUS;
+
+                } else {
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+
+                    PAWN_go_up();
+
+                    has_pawn = GOTO_RELEASE;
                 }
-
-                PAWN_go_up();
-
-                has_pawn = GOTO_RELEASE;
 
                 break;
 
@@ -3297,10 +3358,11 @@ void check_RoboClaw_response(char addr)
 {
     transmit_status = 0;
     if (Serial2.available() >= 3) {
-        Serial.println("RoboClaw responding");
+        Serial.print("RoboClaw responding..");
         Serial2.read();
         Serial2.read();
         Serial2.read();
+        Serial.println(".end");
     } else {
         digitalWrite(RESET_ROBOCLAW, LOW);
         Serial.println("RoboClaw not responding anymore");
