@@ -148,7 +148,7 @@ void delay_ms(uint16_t millis)
 #define HOME                    -120
 //#define HOME                    0
 //#define SERIAL_COMMANDS         0
-#define OPPONENT_DETECTION      0
+//#define OPPONENT_DETECTION      0
 //#define HUGE_STACKS             0
 
 /***********************/
@@ -337,6 +337,8 @@ int opp_green_zone_empty = 0;                              // To know if the opp
 struct Point subzones[6];
 struct Point avoid_points[2];
 int opponent_subzone = 0;
+
+int already_recalibrate = 0;
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -943,7 +945,7 @@ void loop()
 
 
     if (global_time_counter > 50) {
-        //Serial.println("Alive");
+        Serial.println("Alive");
         global_time_counter = 0;
     }
 
