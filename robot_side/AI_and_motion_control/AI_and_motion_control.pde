@@ -1278,7 +1278,7 @@ void loop()
                     }
                 }
 
-
+                Serial3.print("o");
 
 
                 if ((is_in_our_side(&maximus) == 1) && (working_side == -1) && (opponent_subzone == 2)) {
@@ -1891,11 +1891,17 @@ void loop()
                     }
                 }
 
+                if ((green_point_index == 1) && (already_recalibrate == 0)) {
+                    direct_stop_robot();
+                    reinit_x_axis(&maximus);
+                    already_recalibrate = 1;
+                }
 
 
                 PAWN_go_up();
 
                 has_pawn = GO_BACK;
+
 
 
                 break;
@@ -3984,6 +3990,35 @@ void reinit_y_axis(struct robot *my_robot)
     set_new_command(&bot_command_alpha, 0);
     set_new_command(&bot_command_delta, 0);
 
+}
+
+void reinit_x_axis(struct robot *my_robot)
+{
+    set_new_command(&bot_command_alpha, ((-1) * working_side * PI * RAD2DEG));
+    delay(1000);
+    while ((bot_command_alpha.state != COMMAND_DONE)) {
+        delay(100);
+    }
+    set_new_command(&bot_command_delta, -1000);
+    delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+    while ((digitalRead(LEFT_REAR_SENSOR) == 0) || (digitalRead(RIGHT_REAR_SENSOR) == 0)) {
+        delay(100);
+
+    }
+    delay(200);
+
+    // Set the X and theta values
+    my_robot->pos_X = (-1) * working_side * (1500 - DISTANCE_REAR_WHEELS);
+    if (working_side == -1) {
+        my_robot->theta = PI;
+    } else {
+        my_robot->theta = 0;
+    }
+    delay(100);
+
+    delta_motor.max_speed = DELTA_MAX_SPEED;
+    set_new_command(&bot_command_delta, 400);
+    delay(100);
 }
 
 
