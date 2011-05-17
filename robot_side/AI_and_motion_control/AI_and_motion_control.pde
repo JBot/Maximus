@@ -1921,10 +1921,35 @@ void loop()
 
                         if (working_side == 1) {           // On our side
 #ifdef HUGE_STACKS
-                            way_point_index = 3;
-                            goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+                            if (release_priorities[12] >= 10) { // if a pawn is stored
+                                nearest_index = 12;
+                                x_topawn = my_color_points[nearest_index].x;
+                                y_topawn = my_color_points[nearest_index].y;
+                                release_point.x = my_color_points[nearest_index].x;
+                                release_point.y = my_color_points[nearest_index].y;
 
-                            has_pawn = FIND_PAWN;
+
+                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                                if (sens == 0) {           // Front
+                                    goto_xy(x_topawn, y_topawn);
+                                } else {                   // Back
+                                    goto_xy_back(x_topawn, y_topawn);
+                                }
+
+                                nearest_index = 16;
+                                x_topawn = my_color_points[nearest_index].x;
+                                y_topawn = my_color_points[nearest_index].y;
+                                release_point.x = my_color_points[nearest_index].x;
+                                release_point.y = my_color_points[nearest_index].y;
+
+                                has_pawn = STACK;
+
+                            } else {
+                                way_point_index = 3;
+                                goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+    
+                                has_pawn = FIND_PAWN;
+                            }
 #else
                             nearest_index = 16;
                             x_topawn = my_color_points[nearest_index].x;
@@ -2005,28 +2030,6 @@ void loop()
                         if (working_side == 1) {           // On our side
 
                             // TODO
-                            if (release_priorities[12] >= 10) { // if a pawn is stored
-#ifdef HUGE_STACKS
-                                nearest_index = 12;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-                                nearest_index = 0;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-                                has_pawn = STACK;
-#else
                                 nearest_index = 0;
                                 x_topawn = my_color_points[nearest_index].x;
                                 y_topawn = my_color_points[nearest_index].y;
@@ -2041,24 +2044,7 @@ void loop()
                                 }
 
                                 has_pawn = GOTO_RELEASE;
-
-#endif
-                            } else {
-                                nearest_index = 0;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-
-                                has_pawn = GOTO_RELEASE;
-                            }
+                            
                         } else {
 
                             // TODO
@@ -2473,17 +2459,32 @@ void loop()
                 PAWN_grip_pawn();
                 delay(100);
 
-                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                if (sens == 0) {                           // Front
-                    goto_xy(x_topawn, y_topawn);
-                } else {                                   // Back
-                    goto_xy_back(x_topawn, y_topawn);
+                if (nearest_index == 16) {
+                    nearest_index = 16;
+                    x_topawn = my_color_points[nearest_index].x;
+                    y_topawn = my_color_points[nearest_index].y;
+                    release_point.x = my_color_points[nearest_index].x;
+                    release_point.y = my_color_points[nearest_index].y;
+
+                    //goto_xy(0, 1600);
+                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
+
+                    has_pawn = RELEASE_BONUS;
+
+                    PAWN_go_up();
+                } else {
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                           // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                                   // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+    
+                    PAWN_go_up();
+    
+                    has_pawn = GOTO_RELEASE;
                 }
-
-                PAWN_go_up();
-
-                has_pawn = GOTO_RELEASE;
-
+                
                 break;
 
 
