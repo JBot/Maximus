@@ -336,7 +336,7 @@ int opp_green_zone_empty = 0;                              // To know if the opp
 
 struct Point subzones[6];
 struct Point avoid_points[2];
-int opponent_subzone = 0;
+int opponent_subzone = 10;
 
 int already_recalibrate = 0;
 
@@ -982,7 +982,7 @@ void loop()
 
         sense_opponent_ir();
 
-/*
+
 #ifdef OPPONENT_DETECTION
         // OPPONENT DETECTION 
         if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
@@ -1010,9 +1010,9 @@ void loop()
                     } else if ((abs(test_point.x) < 350) && (test_point.y > 1050)) {
                         opponent_subzone = 3;
                     } else if ((test_point.x < -350) && (test_point.y < 1050)) {
-                        opponent_subzone = 1;
+                        opponent_subzone = 0;
                     } else if ((test_point.x < -350) && (test_point.y > 1050)) {
-                        opponent_subzone = 2;
+                        opponent_subzone = 1;
                     }
                 } else {
                     if ((test_point.x > 350) && (test_point.y < 1050)) {
@@ -1034,11 +1034,11 @@ void loop()
 
 
             }
-            
-            
+
+
         }
 #endif
-*/
+
 
 
 
@@ -1100,7 +1100,7 @@ void loop()
                         nearest_index = 16;
 
                         //goto_xy(0, 1600);
-                        goto_xy(HOME, 1600);               // POUR LES TESTS A LA MAISON
+                        goto_xy(color * 120, 1600);        // POUR LES TESTS A LA MAISON
 
                         Serial.println("Second pion");
                         has_pawn = INTERMEDIATE_RELEASE;
@@ -1258,9 +1258,9 @@ void loop()
                     } else if ((abs(test_point.x) < 350) && (test_point.y > 1050)) {
                         opponent_subzone = 3;
                     } else if ((test_point.x < -350) && (test_point.y < 1050)) {
-                        opponent_subzone = 1;
+                        opponent_subzone = 0;
                     } else if ((test_point.x < -350) && (test_point.y > 1050)) {
-                        opponent_subzone = 2;
+                        opponent_subzone = 1;
                     }
                 } else {
                     if ((test_point.x > 350) && (test_point.y < 1050)) {
@@ -1567,7 +1567,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
+                    goto_xy(color * 120, 1600);            // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
                     Serial.println("Tour de ROI");
@@ -1625,7 +1625,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
+                    goto_xy(color * 120, 1600);            // POUR LES TESTS A LA MAISON
 
                     delay(200);
 
@@ -1960,7 +1960,7 @@ void loop()
                             release_point.y = my_color_points[nearest_index].y;
 
                             //goto_xy(0, 1600);
-                            goto_xy(HOME, 1600);           // POUR LES TESTS A LA MAISON
+                            goto_xy(color * 120, 1600);    // POUR LES TESTS A LA MAISON
 
                             has_pawn = RELEASE_BONUS;
 #endif
@@ -2286,7 +2286,7 @@ void loop()
 
                 if (green_point_index == 0) {
                     // CHercher les rois/reines que l'on aurait pas prit
-
+                    Serial.println("Oui0 ");
                     if ((king_taken_our == 0) && (king_taken_opponent == 1)) {
                         working_side = 1;
                         have_king = 1;
@@ -2315,7 +2315,7 @@ void loop()
                         our_green_zone_empty = 1;          // To know if our green zone is empty
                         opp_green_zone_empty = 1;          // To know if the opponent's green zone is empty
 
-                        my_test_point.x = 0;
+                        my_test_point.x = (-1) * color * 120;
                         my_test_point.y = 1500;
                         goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
 
@@ -2329,6 +2329,18 @@ void loop()
 
                 } else {
 
+                    Serial.print("Non0 ");
+                    Serial.print(working_side);
+                    Serial.print(king_taken_our);
+                    Serial.println(opponent_subzone);
+
+                    // Si on est du coté adverse et que l'on a jamais rencontré le robot adverse (ou chez lui), on retourne de notre coté pour finir d'empiler roi et reine
+                    if ((working_side == -1) && ((king_taken_our != 1) || (queen_taken_our != 1))
+                        && (opponent_subzone == 10 || opponent_subzone == 0 || opponent_subzone == 1)) {
+                        working_side = 1;
+                    }
+
+                    Serial.println(working_side);
 
                     if (working_side == 1) {
                         if (king_taken_our == 1) {         // Already take it
@@ -2475,7 +2487,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
+                    goto_xy(color * 120, 1600);            // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
 
@@ -2618,9 +2630,9 @@ void loop()
                     } else if ((abs(test_point.x) < 350) && (test_point.y > 1050)) {
                         opponent_subzone = 3;
                     } else if ((test_point.x < -350) && (test_point.y < 1050)) {
-                        opponent_subzone = 1;
+                        opponent_subzone = 0;
                     } else if ((test_point.x < -350) && (test_point.y > 1050)) {
-                        opponent_subzone = 2;
+                        opponent_subzone = 1;
                     }
                 } else {
                     if ((test_point.x > 350) && (test_point.y < 1050)) {
@@ -2747,10 +2759,14 @@ void loop()
                 PAWN_release_pawn();
                 delay(100);
 
+                placed_pawn[placed_pawn_index].x = my_test_point.x;
+                placed_pawn[placed_pawn_index].y = my_test_point.y;
+                placed_pawn_index++;
+
                 set_new_command(&bot_command_delta, (-200));
 
                 if (way_point_index == 8) {
-
+                    while (1);
                 } else {
                     way_point_index++;
                 }
@@ -3032,28 +3048,28 @@ void init_color_points(void)
     blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
 
     /* Green points */
-    green_points[0].x = (color) * 1160;
-    green_points[1].x = (color) * 1160;
-    green_points[2].x = (color) * 1160;
+    green_points[0].x = (color) * 1200;
+    green_points[1].x = (color) * 1200;
+    green_points[2].x = (color) * 1200;
     green_points[0].y = 690;
     green_points[1].y = 970;
     green_points[2].y = 1250;
 
-    green_points[3].x = (color) * 1160;
-    green_points[4].x = (color) * 1160;
-    green_points[5].x = (-color) * 1160;
+    green_points[3].x = (color) * 1200;
+    green_points[4].x = (color) * 1200;
+    green_points[5].x = (-color) * 1200;
     green_points[3].y = 1530;
     green_points[4].y = 1810;
     green_points[5].y = 690;
 
-    green_points[6].x = (-color) * 1160;
-    green_points[7].x = (-color) * 1160;
-    green_points[8].x = (-color) * 1160;
+    green_points[6].x = (-color) * 1200;
+    green_points[7].x = (-color) * 1200;
+    green_points[8].x = (-color) * 1200;
     green_points[6].y = 970;
     green_points[7].y = 1250;
     green_points[8].y = 1530;
 
-    green_points[9].x = (-color) * 1170;
+    green_points[9].x = (-color) * 1200;
     green_points[9].y = 1810;
 
     release_priorities[0] = 2;
@@ -3061,10 +3077,10 @@ void init_color_points(void)
     release_priorities[2] = 2;
 
     release_priorities[3] = 5;
-    release_priorities[4] = 3;
+    release_priorities[4] = 2;
     release_priorities[5] = 1;
 
-    release_priorities[6] = 3;
+    release_priorities[6] = 4;
     release_priorities[7] = 3;
     release_priorities[8] = 5;
 
@@ -3120,16 +3136,9 @@ void init_way_points(void)
     way_points[5].y = 1050;
 
 
-    blue_points[5].x = -175 + 350 + 350;
-    blue_points[4].x = -175;
-    blue_points[3].x = -175 - 350 - 350;
-    blue_points[3].y = 175 + 350;
-    blue_points[4].y = 175 + 350;
-    blue_points[5].y = 175 + 350;
-
     // GO take the opponent's pawns
-    way_points[6].x = (-1) * color * 175;
-    way_points[6].y = 175 + 350 + 350 + 350 + 350 + 350;
+    way_points[6].x = (-1) * color * 165;
+    way_points[6].y = 185 + 350 + 350 + 350 + 350 + 350;
     way_points[7].x = color * (-175 + 350 + 350);
     way_points[7].y = 175 + 350;
     way_points[8].x = color * (-175 + 350 + 350);
@@ -4084,6 +4093,26 @@ int trajectory_intersection_pawn(struct Point *start, struct Point *end, struct 
         /* A.I. Functions */
         /******************/
 struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+        if (distance < best_distance) {
+            best_distance = distance;
+            result.x = tab[i].x;
+            result.y = tab[i].y;
+            nearest_index = i;
+        }
+
+    }
+    return result;
+}
+
+struct Point find_nearest_our_side(struct robot *my_robot, struct Point tab[], int size)
 {
     struct Point result;
     result.x = color * 875;
