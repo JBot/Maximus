@@ -1150,6 +1150,7 @@ void loop()
                 break;
 
             case GOTO_RELEASE:                            // The robot have a pawn and is on his release point
+                delay(300);
                 PAWN_release_for_greenzone();
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                 set_new_command(&bot_command_delta, (-150));    // TO ADJUST
@@ -1234,7 +1235,7 @@ void loop()
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
         if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
-            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE) || (has_pawn == AVOIDIND2))) {
             prev_has_pawn = has_pawn;
 
             struct Point test_point;
@@ -2246,17 +2247,29 @@ void loop()
             case GOTO_RELEASE:
                 Serial.println("GOTO_RELEASE");
                 if (release_pawn == 1) {
-                    PAWN_release_for_greenzone();
-                    delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                    delay(100);
-                    set_new_command(&bot_command_delta, (-200));        // TO ADJUST
-
-                    PAWN_go_up();
-                    pawn_stack = 0;
+                    
                     if (have_king >= 1) {
+                        delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                        set_new_command(&bot_command_delta, (20));
+                        delay(500);
+                        PAWN_release_for_greenzone();
+                        delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                        delay(100);
+                        set_new_command(&bot_command_delta, (-200));        // TO ADJUST
+    
+                        PAWN_go_up();
+                        pawn_stack = 0;  
                         release_priorities[nearest_index] = 99;
                         Serial3.print("h");
                     } else {
+                        delay(200);
+                        PAWN_release_for_greenzone();
+                        delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                        delay(100);
+                        set_new_command(&bot_command_delta, (-200));        // TO ADJUST
+    
+                        PAWN_go_up();
+                        pawn_stack = 0;
                         release_priorities[nearest_index] = 20;
                     }
                     have_king = 0;
@@ -2473,11 +2486,13 @@ void loop()
 
             case STACK:
                 Serial.println("STACK");
+                set_new_command(&bot_command_delta, 20);
+                delay(400);
                 PAWN_release_pawn();
-                delay(100);
+                delay(200);
                 PAWN_go_down();
                 PAWN_grip_pawn();
-                delay(200);
+                delay(300);
 
                 if (nearest_index == 16) {
                     nearest_index = 16;
@@ -2693,7 +2708,31 @@ void loop()
 #endif
 
 
+        if (has_pawn == AVOIDING2) {
+            // Check if the trajectory become available
 
+            the_point.x = maximus.pos_X;
+            the_point.y = maximus.pos_Y;
+            if (trajectory_intersection_pawn(&the_point, &my_test_point, &release_point, 270) == 1) {   // pawn is in the trajectory
+                // Compute an intermediate way_point
+                //Serial.print("In trajectory ");
+
+            } else {
+                Serial.println("Not anymore in trajectory");
+                //stop_robot();
+
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+                set_new_command(&bot_command_delta, 10);
+                //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+                has_pawn = prev_has_pawn;
+                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                //delay(400);
+
+
+            }
+
+        }
 
 
 
@@ -2772,6 +2811,35 @@ void loop()
                 }
                 has_pawn = GO_BACK;
                 break;
+
+            case AVOIDING0:
+                Serial.println("AVOIDING0");
+                avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                my_angle = angle_coord(&maximus, release_point.x, release_point.y);
+
+                if (my_angle < 0) {                        // Avoid by left
+                    set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
+                } else {                                   // Avoid by right
+                    set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                }
+
+                has_pawn = AVOIDING1;
+                break;
+            case AVOIDING1:
+                Serial.println("AVOIDING1");
+                avoid_object(&maximus, &release_point, avoid_radius + 50);
+
+                has_pawn = AVOIDING2;
+                break;
+            case AVOIDING2:
+                Serial.println("AVOIDING2");
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+                goto_xy(my_test_point.x, my_test_point.y);
+                has_pawn = prev_has_pawn;
+                break;
+
 
 
 
