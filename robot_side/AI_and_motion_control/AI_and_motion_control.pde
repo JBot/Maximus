@@ -271,6 +271,7 @@ int placed_pawn_index = 0;
 struct Point release_point;
 struct Point my_test_point;
 struct Point the_point;
+struct Point avoidingopp_point;
 
 char start_MOTION = 0;
 char turn_counter = 0;
@@ -1235,13 +1236,17 @@ void loop()
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
         if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
-            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE) || (has_pawn == AVOIDIND2))) {
-            prev_has_pawn = has_pawn;
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
+                                                                                                  || (has_pawn == AVOIDING2))) {
+
 
             struct Point test_point;
             test_point = estimate_center(&maximus);
 
             if ((check_point_in_map(&test_point) != 0)) {
+                if (has_pawn != AVOIDING_OPP1 && has_pawn != AVOIDING_OPP2)
+                    prev_has_pawn = has_pawn;
+
                 Serial.print("Opponent detected ");
                 Serial.print(opponent_sensor);
                 Serial.print(" ");
@@ -1293,8 +1298,8 @@ void loop()
                     delta_motor.max_speed = DELTA_MAX_SPEED;
 
                     goto_xy(color * 350, 1400);
-                    my_test_point.x = (-1) * color * 300;
-                    my_test_point.y = 1400;
+                    avoidingopp_point.x = (-1) * color * 300;
+                    avoidingopp_point.y = 1400;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == -1) && (opponent_subzone == 3)) {
                     // We want to go on opponent side, but opponent is in the middle
@@ -1307,8 +1312,8 @@ void loop()
                     delta_motor.max_speed = DELTA_MAX_SPEED;
 
                     goto_xy(color * 300, 400);
-                    my_test_point.x = (-1) * color * 300;
-                    my_test_point.y = 350;
+                    avoidingopp_point.x = (-1) * color * 300;
+                    avoidingopp_point.y = 350;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 3)) {
                     // We want to go on our side, but opponent is in the middle
@@ -1321,8 +1326,8 @@ void loop()
                     delta_motor.max_speed = DELTA_MAX_SPEED;
 
                     goto_xy((-1) * color * 300, 350);
-                    my_test_point.x = color * 300;
-                    my_test_point.y = 400;
+                    avoidingopp_point.x = color * 300;
+                    avoidingopp_point.y = 400;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 2)) {
                     // We want to go on our side, but opponent is in the middle
@@ -1335,8 +1340,8 @@ void loop()
                     delta_motor.max_speed = DELTA_MAX_SPEED;
 
                     goto_xy((-1) * color * 300, 1400);
-                    my_test_point.x = color * 350;
-                    my_test_point.y = 1400;
+                    avoidingopp_point.x = color * 350;
+                    avoidingopp_point.y = 1400;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == 1) && (opponent_subzone == 4 || opponent_subzone == 5)) {
                     // We are in our side, and the opponent too
@@ -1381,9 +1386,9 @@ void loop()
                         green_point_index++;
                     } else {                               // We are carrying something
 
-                        my_test_point = find_nearest(&maximus, my_color_points, 18);
-                        x_topawn = my_test_point.x;
-                        y_topawn = my_test_point.y;
+                        avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
+                        x_topawn = avoidingopp_point.x;
+                        y_topawn = avoidingopp_point.y;
                         sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                         if (sens == 0) {                   // Front
                             goto_xy(x_topawn, y_topawn);
@@ -1453,9 +1458,9 @@ void loop()
                         green_point_index++;
                     } else {                               // We are carrying something
 
-                        my_test_point = find_nearest(&maximus, my_color_points, 18);
-                        x_topawn = my_test_point.x;
-                        y_topawn = my_test_point.y;
+                        avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
+                        x_topawn = avoidingopp_point.x;
+                        y_topawn = avoidingopp_point.y;
                         sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                         if (sens == 0) {                   // Front
                             goto_xy(x_topawn, y_topawn);
@@ -2247,7 +2252,7 @@ void loop()
             case GOTO_RELEASE:
                 Serial.println("GOTO_RELEASE");
                 if (release_pawn == 1) {
-                    
+
                     if (have_king >= 1) {
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                         set_new_command(&bot_command_delta, (20));
@@ -2255,10 +2260,10 @@ void loop()
                         PAWN_release_for_greenzone();
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                         delay(100);
-                        set_new_command(&bot_command_delta, (-200));        // TO ADJUST
-    
+                        set_new_command(&bot_command_delta, (-200));    // TO ADJUST
+
                         PAWN_go_up();
-                        pawn_stack = 0;  
+                        pawn_stack = 0;
                         release_priorities[nearest_index] = 99;
                         Serial3.print("h");
                     } else {
@@ -2266,8 +2271,8 @@ void loop()
                         PAWN_release_for_greenzone();
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                         delay(100);
-                        set_new_command(&bot_command_delta, (-200));        // TO ADJUST
-    
+                        set_new_command(&bot_command_delta, (-200));    // TO ADJUST
+
                         PAWN_go_up();
                         pawn_stack = 0;
                         release_priorities[nearest_index] = 20;
@@ -2557,7 +2562,7 @@ void loop()
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 alpha_motor.max_speed = ALPHA_MAX_SPEED;
 
-                goto_xy(my_test_point.x, my_test_point.y);
+                goto_xy(avoidingopp_point.x, avoidingopp_point.y);
                 has_pawn = AVOIDING_OPP2;
                 break;
 
@@ -2566,7 +2571,18 @@ void loop()
                 delta_motor.max_speed = DELTA_MAX_SPEED;
                 alpha_motor.max_speed = ALPHA_MAX_SPEED;
 
-                goto_xy(my_test_point.x, my_test_point.y);
+                if (prev_has_pawn == GOTO_RELEASE) {
+                    x_topawn = release_point.x;
+                    y_topawn = release_point.y;
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                } else {
+                    goto_xy(my_test_point.x, my_test_point.y);
+                }
                 has_pawn = prev_has_pawn;
                 break;
 
