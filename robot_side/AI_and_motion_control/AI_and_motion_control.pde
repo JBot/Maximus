@@ -779,11 +779,11 @@ void setup()
 
 
 
-//    Serial.print(maximus.pos_X);
-//    Serial.print(" ");
-//    Serial.print(maximus.pos_Y);
-//    Serial.print(" ");
-//    Serial.println(maximus.theta * RAD2DEG);
+        Serial.print(maximus.pos_X);
+        Serial.print(" ");
+        Serial.print(maximus.pos_Y);
+        Serial.print(" ");
+        Serial.println(maximus.theta * RAD2DEG);
 
 
         int sensorValue = 0;
@@ -832,7 +832,7 @@ void setup()
 //        Serial.print(front_distance_down_middle);
 //        Serial.print(" right : ");
 //        Serial.print(front_distance_down_right);
-        Serial.print(" PAWN : ");
+/*        Serial.print(" PAWN : ");
         Serial.print(pawn_distance);
         Serial.print(" SIDE2 : ");
         Serial.print(side_king_sensor2);
@@ -841,7 +841,7 @@ void setup()
         Serial.print(front_distance_up_right);
         Serial.print(" OPP_LEFT : ");
         Serial.println(front_distance_up_left);
-
+*/
 
 
 //        if (front_distance_down_right < 30)
@@ -986,14 +986,17 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         // OPPONENT DETECTION 
-        if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
-            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
-            prev_has_pawn = has_pawn;
+        if (((opponent_sensor > 0 && opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
             struct Point test_point;
             test_point = estimate_center(&maximus);
 
             if ((check_point_in_map(&test_point) != 0)) {
+
+                prev_has_pawn = has_pawn;
+
+
                 Serial.print("Opponent detected ");
                 Serial.print(opponent_sensor);
                 Serial.print(" ");
@@ -1031,6 +1034,45 @@ void loop()
                     }
                 }
 
+
+                Serial3.print("o");
+
+
+                if (has_pawn == INTERMEDIATE_RELEASE) {
+
+                }
+
+                stop_robot();
+
+                while (((opponent_sensor > 0 && opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35)
+                        || (front_distance_up_left < 35))
+                       && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
+
+                    Wire.beginTransmission(0x70);
+                    Wire.send(0x02);
+                    Wire.endTransmission();
+
+                    Wire.requestFrom(0x70, 2);
+
+                    if (2 <= Wire.available()) {
+                        opponent_sensor = Wire.receive();
+                        opponent_sensor = opponent_sensor << 8;
+                        opponent_sensor |= Wire.receive();
+                    }
+
+                    Wire.beginTransmission(0x70);
+                    Wire.send(0x00);
+                    Wire.send(0x51);
+                    Wire.endTransmission();
+
+                    sense_opponent_ir();
+                    delay(70);
+
+
+                }
+
+
+                goto_xy(release_point.x, release_point.y);
 
 
 
@@ -1129,6 +1171,9 @@ void loop()
 
                 goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
 
+                release_point.x = way_points[way_point_index].x;
+                release_point.y = way_points[way_point_index].y;
+
                 Serial.print(".Go to :");
                 Serial.print(way_points[way_point_index].x);
                 Serial.print(" ");
@@ -1140,6 +1185,10 @@ void loop()
                 break;
 
             case INTERMEDIATE_RELEASE:
+
+                release_point.x = x_topawn;
+                release_point.y = y_topawn;
+
                 sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                 if (sens == 0) {                           // Front
                     goto_xy(x_topawn, y_topawn);
@@ -1185,6 +1234,9 @@ void loop()
                     has_pawn = NO_PAWN;
                 } else {                                   // Go take the second pawn
                     goto_xy(way_points[2].x, way_points[2].y);
+
+                    release_point.x = way_points[2].x;
+                    release_point.y = way_points[2].y;
 
                     Serial.print(".Go to :");
                     Serial.print(way_points[2].x);
@@ -1235,7 +1287,8 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
-        if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
+        if (((opponent_sensor > 0 && opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
+            && (has_pawn != TAKE_PAWN)
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
                                                                                                   || (has_pawn == AVOIDING2))) {
 
@@ -1311,7 +1364,7 @@ void loop()
                     set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
 
-                    goto_xy(color * 300, 400);
+                    goto_xy(color * 300, 500);
                     avoidingopp_point.x = (-1) * color * 300;
                     avoidingopp_point.y = 350;
                     has_pawn = AVOIDING_OPP1;
@@ -1327,7 +1380,7 @@ void loop()
 
                     goto_xy((-1) * color * 300, 350);
                     avoidingopp_point.x = color * 300;
-                    avoidingopp_point.y = 400;
+                    avoidingopp_point.y = 500;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 2)) {
                     // We want to go on our side, but opponent is in the middle
@@ -1385,8 +1438,12 @@ void loop()
                         has_pawn = BACK;
                         green_point_index++;
                     } else {                               // We are carrying something
-
-                        avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
+                        if (test_point.x < maximus.pos_X) {
+                            avoidingopp_point = find_nearest_pos_side(&maximus, my_color_points, 18);
+                        } else {
+                            avoidingopp_point = find_nearest_neg_side(&maximus, my_color_points, 18);
+                        }
+                        //avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
                         x_topawn = avoidingopp_point.x;
                         y_topawn = avoidingopp_point.y;
                         sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
@@ -1458,7 +1515,12 @@ void loop()
                         green_point_index++;
                     } else {                               // We are carrying something
 
-                        avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
+                        if (test_point.x < maximus.pos_X) {
+                            avoidingopp_point = find_nearest_pos_side(&maximus, my_color_points, 18);
+                        } else {
+                            avoidingopp_point = find_nearest_neg_side(&maximus, my_color_points, 18);
+                        }
+                        //avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
                         x_topawn = avoidingopp_point.x;
                         y_topawn = avoidingopp_point.y;
                         sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
@@ -2111,7 +2173,7 @@ void loop()
                     } else {                               // I have a pawn
                         if (working_side == 1) {           // On our side
                             // First on the store zone, then on bonus zone in opponent's side
-                            if (release_priorities[12] < 6) {
+                            if ((release_priorities[12] < 6) && (release_priorities[16] < 90)) {
                                 nearest_index = 12;
                                 x_topawn = my_color_points[nearest_index].x;
                                 y_topawn = my_color_points[nearest_index].y;
@@ -2255,8 +2317,8 @@ void loop()
 
                     if (have_king >= 1) {
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                        set_new_command(&bot_command_delta, (20));
-                        delay(500);
+                        set_new_command(&bot_command_delta, (30));
+                        delay(700);
                         PAWN_release_for_greenzone();
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                         delay(100);
@@ -2491,8 +2553,8 @@ void loop()
 
             case STACK:
                 Serial.println("STACK");
-                set_new_command(&bot_command_delta, 20);
-                delay(400);
+                set_new_command(&bot_command_delta, 50);
+                delay(1000);
                 PAWN_release_pawn();
                 delay(200);
                 PAWN_go_down();
@@ -2636,7 +2698,7 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
-        if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
+        if (((opponent_sensor > 0 && opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
             prev_has_pawn = has_pawn;
 
@@ -4223,6 +4285,81 @@ struct Point find_nearest_our_side(struct robot *my_robot, struct Point tab[], i
                     result.y = tab[i].y;
                     nearest_index = i;
                 }
+            }
+        }
+    }
+    return result;
+}
+
+struct Point find_nearest_opp_side(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        if (color == 1) {
+            if (my_robot->pos_X > tab[i].x) {
+                double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    result.x = tab[i].x;
+                    result.y = tab[i].y;
+                    nearest_index = i;
+                }
+            }
+        } else {
+            if (my_robot->pos_X < tab[i].x) {
+                double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    result.x = tab[i].x;
+                    result.y = tab[i].y;
+                    nearest_index = i;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+struct Point find_nearest_pos_side(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        if (my_robot->pos_X < tab[i].x) {
+            double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+            if (distance < best_distance) {
+                best_distance = distance;
+                result.x = tab[i].x;
+                result.y = tab[i].y;
+                nearest_index = i;
+            }
+        }
+    }
+    return result;
+}
+
+struct Point find_nearest_neg_side(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        if (my_robot->pos_X > tab[i].x) {
+            double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+            if (distance < best_distance) {
+                best_distance = distance;
+                result.x = tab[i].x;
+                result.y = tab[i].y;
+                nearest_index = i;
             }
         }
     }
