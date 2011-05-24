@@ -1762,7 +1762,8 @@ void loop()
                 if (nb_check == 0) {
 
                     direct_stop_robot();
-
+                    bot_command_alpha.state = COMMAND_DONE;
+                    bot_command_delta.state = COMMAND_DONE;
                     Serial.println("Take pawn");
                     //set_new_command(&bot_command_delta, -5);
 
@@ -1912,7 +1913,7 @@ void loop()
                 PAWN_mini_go_up();
 
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK_PAWN;
-                set_new_command(&bot_command_delta, (-330));    //350
+                set_new_command(&bot_command_delta, (-1) * (abs(maximus.pos_X) - 900)); //350
 
                 // To store the king and queen position
                 if (have_king == 1) {                      // I have a king
@@ -2557,7 +2558,11 @@ void loop()
                 delay(1000);
                 PAWN_release_pawn();
                 delay(200);
+                set_new_command(&bot_command_delta, -20);
+                delay(200);
                 PAWN_go_down();
+                set_new_command(&bot_command_delta, 30);
+                delay(400);
                 PAWN_grip_pawn();
                 delay(300);
 
