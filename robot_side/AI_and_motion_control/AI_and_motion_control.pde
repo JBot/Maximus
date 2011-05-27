@@ -121,6 +121,8 @@ void delay_ms(uint16_t millis)
 
 #define RESET_ROBOCLAW          45
 
+#define FRONT_US                0x71
+#define REAR_US                 0x72
 
 #define LIFT_GO_UP		HIGH
 #define LIFT_GO_DOWN		LOW
@@ -340,6 +342,10 @@ struct Point avoid_points[2];
 int opponent_subzone = 10;
 
 int already_recalibrate = 0;
+
+int avoid_index = 0;
+
+
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -768,7 +774,7 @@ void setup()
             }
         }
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -788,11 +794,11 @@ void setup()
 
         int sensorValue = 0;
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x02);
         Wire.endTransmission();
 
-        Wire.requestFrom(0x70, 2);
+        Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
             side_king_sensor2 = Wire.receive();
@@ -913,7 +919,7 @@ void setup()
 
     Serial.println("START");
 
-    Wire.beginTransmission(0x70);
+    Wire.beginTransmission(FRONT_US);
     Wire.send(0x00);
     Wire.send(0x51);
     Wire.endTransmission();
@@ -964,11 +970,11 @@ void loop()
     case SECURE_PAWN:
 
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x02);
         Wire.endTransmission();
 
-        Wire.requestFrom(0x70, 2);
+        Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
             opponent_sensor = Wire.receive();
@@ -976,7 +982,7 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -1048,11 +1054,11 @@ void loop()
                         || (front_distance_up_left < 35))
                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
-                    Wire.beginTransmission(0x70);
+                    Wire.beginTransmission(FRONT_US);
                     Wire.send(0x02);
                     Wire.endTransmission();
 
-                    Wire.requestFrom(0x70, 2);
+                    Wire.requestFrom(FRONT_US, 2);
 
                     if (2 <= Wire.available()) {
                         opponent_sensor = Wire.receive();
@@ -1060,7 +1066,7 @@ void loop()
                         opponent_sensor |= Wire.receive();
                     }
 
-                    Wire.beginTransmission(0x70);
+                    Wire.beginTransmission(FRONT_US);
                     Wire.send(0x00);
                     Wire.send(0x51);
                     Wire.endTransmission();
@@ -1266,11 +1272,11 @@ void loop()
 
 
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x02);
         Wire.endTransmission();
 
-        Wire.requestFrom(0x70, 2);
+        Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
             opponent_sensor = Wire.receive();
@@ -1278,7 +1284,7 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -2555,7 +2561,7 @@ void loop()
             case STACK:
                 Serial.println("STACK");
                 set_new_command(&bot_command_delta, 50);
-                delay(1000);
+                delay(800);
                 PAWN_release_pawn();
                 delay(200);
                 set_new_command(&bot_command_delta, -20);
@@ -2598,22 +2604,36 @@ void loop()
 
             case AVOIDING0:
                 Serial.println("AVOIDING0");
-                avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
-                my_angle = angle_coord(&maximus, release_point.x, release_point.y);
 
-                if (my_angle < 0) {                        // Avoid by left
-                    set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
-                } else {                                   // Avoid by right
-                    set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                if (avoid_index == 5 || avoid_index == 11) {
+                    if(abs(maximus.pos_X) > 525) {
+                        goto_xy((-1) * color * 300, 875);
+                    }
+                    else {
+                        goto_xy((-1) * color * 800, 875);
+                    }
+                } else {
+
+                    avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                    my_angle = angle_coord(&maximus, release_point.x, release_point.y);
+    
+                    if (my_angle < 0) {                        // Avoid by left
+                        set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
+                    } else {                                   // Avoid by right
+                        set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                    }
                 }
-
                 has_pawn = AVOIDING1;
                 break;
             case AVOIDING1:
                 Serial.println("AVOIDING1");
-                avoid_object(&maximus, &release_point, avoid_radius + 50);
-
-                has_pawn = AVOIDING2;
+                if (avoid_index == 5 || avoid_index == 11) {
+                    has_pawn = prev_has_pawn;
+                    goto_xy(my_test_point.x, my_test_point.y);
+                } else {
+                    avoid_object(&maximus, &release_point, avoid_radius + 50);
+                    has_pawn = AVOIDING2;
+                }
                 break;
             case AVOIDING2:
                 Serial.println("AVOIDING2");
@@ -2682,11 +2702,11 @@ void loop()
 
 
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x02);
         Wire.endTransmission();
 
-        Wire.requestFrom(0x70, 2);
+        Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
             opponent_sensor = Wire.receive();
@@ -2694,7 +2714,7 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -2755,11 +2775,11 @@ void loop()
                 while (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
 
-                    Wire.beginTransmission(0x70);
+                    Wire.beginTransmission(FRONT_US);
                     Wire.send(0x02);
                     Wire.endTransmission();
 
-                    Wire.requestFrom(0x70, 2);
+                    Wire.requestFrom(FRONT_US, 2);
 
                     if (2 <= Wire.available()) {
                         opponent_sensor = Wire.receive();
@@ -2767,7 +2787,7 @@ void loop()
                         opponent_sensor |= Wire.receive();
                     }
 
-                    Wire.beginTransmission(0x70);
+                    Wire.beginTransmission(FRONT_US);
                     Wire.send(0x00);
                     Wire.send(0x51);
                     Wire.endTransmission();
@@ -4393,21 +4413,38 @@ void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int 
 
     }
 
+    if ((result.x == my_color_points[5].x) && (result.y == my_color_points[5].y)) {
+        avoid_index = 5;
+    }
+    if ((result.x == my_color_points[11].x) && (result.y == my_color_points[11].y)) {
+        avoid_index = 11;
+    }
+
     if (result2 == 1) {
         double ang, dist;
         Serial.println("Must avoid pawn");
         release_point.x = result.x;
         release_point.y = result.y;
 
-        ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
-        set_new_command(&bot_command_alpha, ang);
-
-        dist = distance_coord(&maximus, result.x, result.y) - 280;      // TO REDUCE LATER
-        set_new_command(&prev_bot_command_delta, dist);
-        bot_command_delta.state = WAITING_BEGIN;
-        //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+        if (avoid_index == 5 || avoid_index == 11) {
+            if(abs(maximus.pos_X) > 525) {
+                goto_xy((-1) * color * 700, 875);
+            }
+            else {
+                goto_xy((-1) * color * 350, 875);
+            }
+        } else {
+            ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
+            set_new_command(&bot_command_alpha, ang);
+    
+            dist = distance_coord(&maximus, result.x, result.y) - 280;      // TO REDUCE LATER
+            set_new_command(&prev_bot_command_delta, dist);
+            bot_command_delta.state = WAITING_BEGIN;
+            //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+        }
         prev_has_pawn = has_pawn;
         has_pawn = AVOIDING0;
+        
     } else {
         goto_xy(dest->x, dest->y);
         //has_pawn = ;
