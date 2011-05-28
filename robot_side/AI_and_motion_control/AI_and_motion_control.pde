@@ -1831,7 +1831,7 @@ void loop()
                     }
                     has_pawn = GOTO_RELEASE;
 
-
+                    green_point_index++;
                     nb_check = 0;
                     pawn_found = 1;
                 } else {
@@ -2375,7 +2375,7 @@ void loop()
 
             case BACK:
                 Serial.println("BACK");
-                Serial.println((time_in_match * 90) / 10970);
+                //Serial.println((time_in_match * 90) / 10970);
                 PAWN_release_pawn();
                 delta_motor.max_speed = DELTA_MAX_SPEED;
 
@@ -2397,6 +2397,8 @@ void loop()
                         my_test_point.x = (-1) * color * 800;
                         my_test_point.y = taken_king1.y;
                         goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        PAWN_close();
+                        PAWN_go_down();
                     } else if ((queen_taken_our == 0) && (queen_taken_opponent == 1)) {
                         working_side = 1;
                         have_king = 2;
@@ -2409,6 +2411,8 @@ void loop()
                         my_test_point.x = (-1) * color * 800;
                         my_test_point.y = taken_queen1.y;
                         goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        PAWN_close();
+                        PAWN_go_down();
                     } else {
                         our_green_zone_empty = 1;          // To know if our green zone is empty
                         opp_green_zone_empty = 1;          // To know if the opponent's green zone is empty
@@ -4505,7 +4509,7 @@ void reinit_y_axis(struct robot *my_robot)
 
 void reinit_x_axis(struct robot *my_robot)
 {
-    set_new_command(&bot_command_alpha, ((-1) * working_side * PI * RAD2DEG));
+    set_new_command(&bot_command_alpha, ((color) * working_side * PI * RAD2DEG));
     delay(1000);
     while ((bot_command_alpha.state != COMMAND_DONE)) {
         delay(100);
@@ -4519,8 +4523,8 @@ void reinit_x_axis(struct robot *my_robot)
     delay(200);
 
     // Set the X and theta values
-    my_robot->pos_X = (-1) * working_side * (1500 - DISTANCE_REAR_WHEELS);
-    if (working_side == -1) {
+    my_robot->pos_X = (color) * working_side * (1500 - DISTANCE_REAR_WHEELS);
+    if ((working_side * color) == 1) {
         my_robot->theta = PI;
     } else {
         my_robot->theta = 0;
@@ -4559,6 +4563,12 @@ void PAWN_grip_pawn(void)
     //gripServo_left.write(135);
     gripServo_right.write(65);
     gripServo_left.write(115);
+}
+
+void PAWN_close(void)
+{
+    gripServo_right.write(50);
+    gripServo_left.write(130);
 }
 
 void PAWN_release_pawn(void)
