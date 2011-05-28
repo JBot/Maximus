@@ -2335,10 +2335,21 @@ void loop()
                     if (have_king >= 1) {
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                         set_new_command(&bot_command_delta, (30));
-                        delay(700);
+                        delay(500);
                         PAWN_release_for_greenzone();
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                         delay(100);
+
+                        if (release_priorities[nearest_index] == 20) {
+                            PAWN_release_pawn_huge();
+                            PAWN_go_med();
+                            //delay(100);
+                            PAWN_grip_pawn();
+                            delay(200);
+                            PAWN_release_for_greenzone();
+                            delay(100);
+                        }
+
                         set_new_command(&bot_command_delta, (-200));    // TO ADJUST
 
                         PAWN_go_up();
@@ -2434,18 +2445,17 @@ void loop()
 
                 } else {
 
-                    Serial.print("Non0 ");
-                    Serial.print(working_side);
-                    Serial.print(king_taken_our);
-                    Serial.println(opponent_subzone);
+                    //Serial.print("Non0 ");
+                    //Serial.print(working_side);
+                    //Serial.print(king_taken_our);
+                    //Serial.println(opponent_subzone);
 
                     // Si on est du coté adverse et que l'on a jamais rencontré le robot adverse (ou chez lui), on retourne de notre coté pour finir d'empiler roi et reine
                     if ((working_side == -1) && ((king_taken_our != 1) || (queen_taken_our != 1))
                         && (opponent_subzone == 10 || opponent_subzone == 0 || opponent_subzone == 1)) {
                         working_side = 1;
                     }
-
-                    Serial.println(working_side);
+                    //Serial.println(working_side);
 
                     if (working_side == 1) {
                         if (king_taken_our == 1) {         // Already take it
@@ -2579,7 +2589,7 @@ void loop()
             case STACK:
                 Serial.println("STACK");
                 set_new_command(&bot_command_delta, 50);
-                delay(800);
+                delay(700);
                 PAWN_release_pawn();
                 delay(200);
                 set_new_command(&bot_command_delta, -20);
@@ -4579,6 +4589,12 @@ void PAWN_release_pawn(void)
     gripServo_left.write(70);
 }
 
+void PAWN_release_pawn_huge(void)
+{
+    gripServo_right.write(121);
+    gripServo_left.write(60);
+}
+
 void PAWN_release_for_greenzone(void)
 {
     //gripServo_right.write(91);
@@ -4656,6 +4672,13 @@ void PAWN_go_down(void)
     lifter_servo.write(90);
     //analogWrite(LIFT_MOTOR_PWM, 0);
 
+}
+
+void PAWN_go_med()
+{
+    lifter_servo.write(47);
+    delay(400);
+    lifter_servo.write(90);
 }
 
 /************************************/
