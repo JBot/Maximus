@@ -148,6 +148,7 @@ void delay_ms(uint16_t millis)
 
 #define NO_SENSORS
 #define HOME                    -120
+#define INTERMEDIATE_POS        130
 //#define HOME                    0
 //#define SERIAL_COMMANDS         0
 #define OPPONENT_DETECTION      0
@@ -1050,9 +1051,10 @@ void loop()
                 }
 
                 stop_robot();
+                delay(200);
 
-                while (((opponent_sensor > 0 && opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35)
-                        || (front_distance_up_left < 35))
+                while (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < 36)
+                        || (front_distance_up_left < 36))
                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
                     Wire.beginTransmission(FRONT_US);
@@ -1078,8 +1080,20 @@ void loop()
 
                 }
 
+                Serial.print("Opponent gone ");
+                Serial.print(opponent_sensor);
+                Serial.print(" ");
+                Serial.print(front_distance_up_right);
+                Serial.print(" ");
+                Serial.println(front_distance_up_left);
 
-                goto_xy(release_point.x, release_point.y);
+                if (has_pawn == INTERMEDIATE_RELEASE) {
+                    goto_xy(color * INTERMEDIATE_POS, 1600);
+                } else {
+                    goto_xy(release_point.x, release_point.y);
+                }
+
+
 
 
 
@@ -1150,7 +1164,7 @@ void loop()
                         nearest_index = 16;
 
                         //goto_xy(0, 1600);
-                        goto_xy(color * 120, 1600);        // POUR LES TESTS A LA MAISON
+                        goto_xy(color * INTERMEDIATE_POS, 1600);        // POUR LES TESTS A LA MAISON
 
                         Serial.println("Second pion");
                         has_pawn = INTERMEDIATE_RELEASE;
@@ -1636,6 +1650,8 @@ void loop()
                     set_new_command(&bot_command_delta, -20);
                     delay(100);
                     PAWN_go_down();
+                    set_new_command(&bot_command_delta, 20);
+                    delay(300);
                     PAWN_grip_pawn();
 
                     delta_motor.max_speed = DELTA_MAX_SPEED;
@@ -1651,7 +1667,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(color * 120, 1600);            // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
                     Serial.println("Tour de ROI");
@@ -1709,11 +1725,11 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(color * 120, 1600);            // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
 
                     delay(200);
 
-                    pawn_stack = 0;
+                    pawn_stack++;
 
                     nb_check = 0;
                 } else {
@@ -2045,7 +2061,7 @@ void loop()
                             release_point.y = my_color_points[nearest_index].y;
 
                             //goto_xy(0, 1600);
-                            goto_xy(color * 120, 1600);    // POUR LES TESTS A LA MAISON
+                            goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
 
                             has_pawn = RELEASE_BONUS;
 #endif
@@ -2255,7 +2271,7 @@ void loop()
                             }
 
                             has_pawn = GOTO_RELEASE;
-                        } else {
+                        } else {                           // Opponent side
                             if (release_priorities[11] == 1) {  // Nothing on it
                                 nearest_index = 11;
                                 x_topawn = my_color_points[nearest_index].x;
@@ -2293,23 +2309,21 @@ void loop()
                             } else {
                                 // Find another place
 
-
-
-                                nearest_index = 14;
+                                if (abs(maximus.pos_X) < 525) {
+                                    nearest_index = 13;
+                                } else {
+                                    nearest_index = 14;
+                                }
                                 x_topawn = my_color_points[nearest_index].x;
                                 y_topawn = my_color_points[nearest_index].y;
                                 release_point.x = my_color_points[nearest_index].x;
                                 release_point.y = my_color_points[nearest_index].y;
-
                                 sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                                 if (sens == 0) {           // Front
                                     goto_xy(x_topawn, y_topawn);
                                 } else {                   // Back
                                     goto_xy_back(x_topawn, y_topawn);
                                 }
-
-
-
 
                             }
 
@@ -2428,7 +2442,7 @@ void loop()
                         our_green_zone_empty = 1;          // To know if our green zone is empty
                         opp_green_zone_empty = 1;          // To know if the opponent's green zone is empty
 
-                        my_test_point.x = (-1) * color * 120;
+                        my_test_point.x = (-1) * color * INTERMEDIATE_POS;
                         my_test_point.y = 1500;
                         goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
 
@@ -2608,7 +2622,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(color * 120, 1600);            // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
 
