@@ -2343,9 +2343,24 @@ void loop()
 
             case FIND_PAWN:
                 Serial.println("FIND_PAWN");
-                way_point_index++;
-                goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
-//                nearest_index = 0;
+
+                if (way_point_index >= 5) {
+                    nearest_index = 16;
+                    x_topawn = my_color_points[nearest_index].x;
+                    y_topawn = my_color_points[nearest_index].y;
+                    release_point.x = my_color_points[nearest_index].x;
+                    release_point.y = my_color_points[nearest_index].y;
+
+                    //goto_xy(0, 1600);
+                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
+
+                    has_pawn = RELEASE_BONUS;
+                } else {
+                    way_point_index++;
+                    goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+                    //                nearest_index = 0;
+                }
+
 
                 break;
 
