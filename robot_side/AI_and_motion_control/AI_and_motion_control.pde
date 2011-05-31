@@ -149,6 +149,9 @@ void delay_ms(uint16_t millis)
 #define DELTA_MAX_ACCEL         1000                       //900                        //600
 #define DELTA_MAX_DECEL         10000                      //4000                       //1800
 
+#define FRONT_US_DISTANCE       51
+#define REAR_US_DISTANCE        35
+#define FRONT_IR_DISTANCE       42
 
 #define NO_SENSORS
 #define HOME                    -120
@@ -249,6 +252,7 @@ int front_distance_up_right = 50;
 int side_king_sensor = 60;
 int side_king_sensor2 = 0;
 int opponent_sensor = 60;
+int opponent_sensor_rear = 60;
 
 int side_sensor_on = 1;
 
@@ -781,7 +785,15 @@ void setup()
             }
         }
 
+
+
+
         Wire.beginTransmission(FRONT_US);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        Wire.beginTransmission(REAR_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -808,11 +820,28 @@ void setup()
         Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
-            side_king_sensor2 = Wire.receive();
-            side_king_sensor2 = side_king_sensor2 << 8;
-            side_king_sensor2 |= Wire.receive();
+            opponent_sensor = Wire.receive();
+            opponent_sensor = opponent_sensor << 8;
+            opponent_sensor |= Wire.receive();
+        }
+
+        Wire.beginTransmission(REAR_US);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(REAR_US, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor_rear = Wire.receive();
+            opponent_sensor_rear = opponent_sensor_rear << 8;
+            opponent_sensor_rear |= Wire.receive();
         }
 //        read_down_IR();
+
+        Serial.print(" FRONT US : ");
+        Serial.print(opponent_sensor);
+        Serial.print(" REAR US : ");
+        Serial.print(opponent_sensor_rear);
 
         sense_opponent_ir();
 
@@ -991,7 +1020,25 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
+        Wire.beginTransmission(REAR_US);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(REAR_US, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor_rear = Wire.receive();
+            opponent_sensor_rear = opponent_sensor_rear << 8;
+            opponent_sensor_rear |= Wire.receive();
+        }
+
+
         Wire.beginTransmission(FRONT_US);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        Wire.beginTransmission(REAR_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -1001,7 +1048,8 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         // OPPONENT DETECTION 
-        if (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < 36) || (front_distance_up_left < 36))
+        if (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
+             || (front_distance_up_left < FRONT_IR_DISTANCE))
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
             struct Point test_point;
@@ -1060,8 +1108,8 @@ void loop()
                 stop_robot();
                 delay(200);
 
-                while (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < 36)
-                        || (front_distance_up_left < 36))
+                while (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
+                        || (front_distance_up_left < FRONT_IR_DISTANCE))
                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
                     Wire.beginTransmission(FRONT_US);
@@ -1108,6 +1156,56 @@ void loop()
 
 
         }
+#endif
+
+
+#ifdef OPPONENT_DETECTION
+        /* OPPONENT DETECTION */
+        if (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) && (has_pawn == GO_BACK)) {
+
+
+            Serial.print("Opponent detected (BACK) ");
+            Serial.println(opponent_sensor_rear);
+
+            Serial3.print("o");
+
+            stop_robot();
+
+            while (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE))) {
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x02);
+                Wire.endTransmission();
+
+                Wire.requestFrom(REAR_US, 2);
+
+                if (2 <= Wire.available()) {
+                    opponent_sensor_rear = Wire.receive();
+                    opponent_sensor_rear = opponent_sensor_rear << 8;
+                    opponent_sensor_rear |= Wire.receive();
+                }
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x00);
+                Wire.send(0x51);
+                Wire.endTransmission();
+
+
+                delay(70);
+
+
+            }
+
+            double dist = distance_coord(&maximus, my_color_points[nearest_index].x, my_color_points[nearest_index].y);
+            if (dist < (240 + 150)) {
+
+                set_new_command(&bot_command_delta, (-1) * (150 - abs(dist - 240)));
+                delay(100);
+
+            }
+
+        }
+
 #endif
 
 
@@ -1231,9 +1329,34 @@ void loop()
                 delay(300);
                 PAWN_release_for_greenzone();
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                set_new_command(&bot_command_delta, (-150));    // TO ADJUST
 
-                PAWN_go_up();
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x00);
+                Wire.send(0x51);
+                Wire.endTransmission();
+
+                delay(70);
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x02);
+                Wire.endTransmission();
+
+                Wire.requestFrom(REAR_US, 2);
+
+                if (2 <= Wire.available()) {
+                    opponent_sensor_rear = Wire.receive();
+                    opponent_sensor_rear = opponent_sensor_rear << 8;
+                    opponent_sensor_rear |= Wire.receive();
+                }
+
+                if ((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) {
+                    PAWN_go_up();
+                    set_new_command(&bot_command_delta, (-150));
+                } else {
+                    set_new_command(&bot_command_delta, (-150));        // TO ADJUST
+                    PAWN_go_up();
+                }
+
 
                 pawn_stack = 0;
 
@@ -1306,7 +1429,25 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
+        Wire.beginTransmission(REAR_US);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(REAR_US, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor_rear = Wire.receive();
+            opponent_sensor_rear = opponent_sensor_rear << 8;
+            opponent_sensor_rear |= Wire.receive();
+        }
+
+
         Wire.beginTransmission(FRONT_US);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        Wire.beginTransmission(REAR_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -1315,7 +1456,13 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
-        if (((opponent_sensor > 0 && opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
+/*        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE) || (front_distance_up_left < FRONT_IR_DISTANCE))
+            && (has_pawn != TAKE_PAWN)
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
+                                                                                                  || (has_pawn == AVOIDING2))) {
+*/
+        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE) || (front_distance_up_right < FRONT_IR_DISTANCE)
+             || (front_distance_up_left < FRONT_IR_DISTANCE))
             && (has_pawn != TAKE_PAWN)
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
                                                                                                   || (has_pawn == AVOIDING2))) {
@@ -1626,8 +1773,54 @@ void loop()
 
 
 
+#ifdef OPPONENT_DETECTION
+        /* OPPONENT DETECTION */
+        if (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) && (has_pawn == BACK)) {
 
 
+            Serial.print("Opponent detected (BACK) ");
+            Serial.println(opponent_sensor_rear);
+
+            Serial3.print("o");
+
+            direct_stop_robot();
+
+            while (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE))) {
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x02);
+                Wire.endTransmission();
+
+                Wire.requestFrom(REAR_US, 2);
+
+                if (2 <= Wire.available()) {
+                    opponent_sensor_rear = Wire.receive();
+                    opponent_sensor_rear = opponent_sensor_rear << 8;
+                    opponent_sensor_rear |= Wire.receive();
+                }
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x00);
+                Wire.send(0x51);
+                Wire.endTransmission();
+
+
+                delay(70);
+
+
+            }
+
+            double dist = distance_coord(&maximus, my_color_points[nearest_index].x, my_color_points[nearest_index].y);
+            if (dist < (240 + 180)) {
+
+                set_new_command(&bot_command_delta, (-1) * (190 - abs(dist - 240)));
+                delay(100);
+
+            }
+
+        }
+
+#endif
 
 
 
@@ -2385,10 +2578,38 @@ void loop()
                             PAWN_release_for_greenzone();
                             delay(100);
                         }
+                        //set_new_command(&bot_command_delta, (-200));    // TO ADJUST
 
-                        set_new_command(&bot_command_delta, (-200));    // TO ADJUST
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x00);
+                        Wire.send(0x51);
+                        Wire.endTransmission();
 
-                        PAWN_go_up();
+                        delay(70);
+
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x02);
+                        Wire.endTransmission();
+
+                        Wire.requestFrom(REAR_US, 2);
+
+                        if (2 <= Wire.available()) {
+                            opponent_sensor_rear = Wire.receive();
+                            opponent_sensor_rear = opponent_sensor_rear << 8;
+                            opponent_sensor_rear |= Wire.receive();
+                        }
+
+
+
+                        if ((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) {
+                            PAWN_go_up();
+                            set_new_command(&bot_command_delta, (-200));
+                        } else {
+                            set_new_command(&bot_command_delta, (-200));        // TO ADJUST
+                            PAWN_go_up();
+                        }
+
+                        //PAWN_go_up();
                         pawn_stack = 0;
                         release_priorities[nearest_index] = 99;
                         Serial3.print("h");
@@ -2396,10 +2617,34 @@ void loop()
                         delay(200);
                         PAWN_release_for_greenzone();
                         delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                        delay(100);
-                        set_new_command(&bot_command_delta, (-200));    // TO ADJUST
+                        delay(30);
 
-                        PAWN_go_up();
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x00);
+                        Wire.send(0x51);
+                        Wire.endTransmission();
+
+                        delay(70);
+
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x02);
+                        Wire.endTransmission();
+
+                        Wire.requestFrom(REAR_US, 2);
+
+                        if (2 <= Wire.available()) {
+                            opponent_sensor_rear = Wire.receive();
+                            opponent_sensor_rear = opponent_sensor_rear << 8;
+                            opponent_sensor_rear |= Wire.receive();
+                        }
+
+                        if ((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) {
+                            PAWN_go_up();
+                            set_new_command(&bot_command_delta, (-200));
+                        } else {
+                            set_new_command(&bot_command_delta, (-200));        // TO ADJUST
+                            PAWN_go_up();
+                        }
                         pawn_stack = 0;
                         release_priorities[nearest_index] = 20;
                     }
@@ -2864,7 +3109,8 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
-        if (((opponent_sensor > 0 && opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
+        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
+             || (front_distance_up_left < FRONT_IR_DISTANCE))
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
             prev_has_pawn = has_pawn;
 
@@ -2913,7 +3159,8 @@ void loop()
 
 
 
-                while (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35))
+                while (((opponent_sensor < FRONT_US_DISTANCE && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
+                        || (front_distance_up_left < FRONT_IR_DISTANCE))
                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
 
                     Wire.beginTransmission(FRONT_US);
@@ -4562,33 +4809,37 @@ void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int 
         avoid_index = 11;
     }
 
-    if (result2 == 1) {
-        double ang, dist;
-        Serial.println("Must avoid pawn");
-        release_point.x = result.x;
-        release_point.y = result.y;
-
-        if (avoid_index == 5 || avoid_index == 11) {
-            if (abs(maximus.pos_X) > 525) {
-                goto_xy((-1) * color * 700, 875);
-            } else {
-                goto_xy((-1) * color * 350, 875);
-            }
-        } else {
-            ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
-            set_new_command(&bot_command_alpha, ang);
-
-            dist = distance_coord(&maximus, result.x, result.y) - 280;  // TO REDUCE LATER
-            set_new_command(&prev_bot_command_delta, dist);
-            bot_command_delta.state = WAITING_BEGIN;
-            //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
-        }
-        prev_has_pawn = has_pawn;
-        has_pawn = AVOIDING0;
-
-    } else {
+    if ((result.x == my_color_points[3].x) && (result.y == my_color_points[3].y)) {
         goto_xy(dest->x, dest->y);
-        //has_pawn = ;
+    } else {
+        if (result2 == 1) {
+            double ang, dist;
+            Serial.println("Must avoid pawn");
+            release_point.x = result.x;
+            release_point.y = result.y;
+
+            if (avoid_index == 5 || avoid_index == 11) {
+                if (abs(maximus.pos_X) > 525) {
+                    goto_xy((-1) * color * 700, 875);
+                } else {
+                    goto_xy((-1) * color * 350, 875);
+                }
+            } else {
+                ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
+                set_new_command(&bot_command_alpha, ang);
+
+                dist = distance_coord(&maximus, result.x, result.y) - 280;      // TO REDUCE LATER
+                set_new_command(&prev_bot_command_delta, dist);
+                bot_command_delta.state = WAITING_BEGIN;
+                //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+            }
+            prev_has_pawn = has_pawn;
+            has_pawn = AVOIDING0;
+
+        } else {
+            goto_xy(dest->x, dest->y);
+            //has_pawn = ;
+        }
     }
 
 }
