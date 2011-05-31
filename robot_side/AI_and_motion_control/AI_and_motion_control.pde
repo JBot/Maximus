@@ -1143,7 +1143,7 @@ void loop()
                 Serial.println(front_distance_up_left);
 
                 if (has_pawn == INTERMEDIATE_RELEASE) {
-                    goto_xy(color * INTERMEDIATE_POS, 1600);
+                    goto_xy(color * INTERMEDIATE_POS, 1500);
                 } else {
                     goto_xy(release_point.x, release_point.y);
                 }
@@ -1297,7 +1297,7 @@ void loop()
                         nearest_index = 16;
 
                         //goto_xy(0, 1600);
-                        goto_xy(color * INTERMEDIATE_POS, 1600);        // POUR LES TESTS A LA MAISON
+                        goto_xy(color * INTERMEDIATE_POS, 1500);        // POUR LES TESTS A LA MAISON
 
                         Serial.println("Second pion");
                         has_pawn = INTERMEDIATE_RELEASE;
@@ -1741,7 +1741,7 @@ void loop()
                     }
 
                     if (has_pawn == INTERMEDIATE_RELEASE) {
-                        goto_xy(color * INTERMEDIATE_POS, 1600);
+                        goto_xy(color * INTERMEDIATE_POS, 1500);
                     } else {
                         goto_xy(release_point.x, release_point.y);
                     }
@@ -1874,7 +1874,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
                     Serial.println("Tour de ROI");
@@ -1932,7 +1932,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                     delay(200);
 
@@ -2268,7 +2268,7 @@ void loop()
                             release_point.y = my_color_points[nearest_index].y;
 
                             //goto_xy(0, 1600);
-                            goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
+                            goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                             has_pawn = RELEASE_BONUS;
 #endif
@@ -2517,7 +2517,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
                 } else {
@@ -2666,7 +2666,7 @@ void loop()
 
                     if (green_point_index == 0) {
                         // CHercher les rois/reines que l'on aurait pas prit
-                        Serial.println("Oui0 ");
+                        //Serial.println("Oui0 ");
                         if ((king_taken_our == 0) && (king_taken_opponent == 1)) {
                             working_side = 1;
                             have_king = 1;
@@ -2708,7 +2708,7 @@ void loop()
                             has_pawn = GO_BACK;
                             robot_mode = PLACING_PAWN;
 
-                            Serial.println((time_in_match * 90) / 10970);
+                            //Serial.println((time_in_match * 90) / 10970);
 
                         }
 
@@ -2880,7 +2880,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(color * INTERMEDIATE_POS, 1600);    // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
 
@@ -4549,9 +4549,9 @@ int check_point_in_map(struct Point *my_point)
     int error = 0;                                         // Outside the map
     if ((my_point->x > (1500 - BORDER_LIMIT - 300)) || (my_point->x < (-1500 + BORDER_LIMIT + 300)) || (my_point->y > (2100 - BORDER_LIMIT))
         || (my_point->y < BORDER_LIMIT)
-        || ((my_point->y > 1800) && (((my_point->x > 350) && (my_point->x < 1450)) || ((my_point->x < -350) && (my_point->x > -1450))))
+        || ((my_point->y > 1950) && (((my_point->x > 350) && (my_point->x < 1450)) || ((my_point->x < -350) && (my_point->x > -1450))))
         || ((my_point->y < 450) && ((my_point->x > 950) || (my_point->x < -950)))
-        || ((my_point->y > 1800) && (my_point->x > (color * 50))))
+        || ((my_point->y > 1950) && (my_point->x > (color * 50))))
         error = 0;
     else
         error = 1;
@@ -4572,44 +4572,13 @@ int trajectory_intersection_pawn(struct Point *start, struct Point *end, struct 
     double y2 = (double) end->y / 10.0;
     double x3 = (double) center->x / 10.0;
     double y3 = (double) center->y / 10.0;
-/*      
-       Serial.print("s_x : ");
-       Serial.print(x1);
-       Serial.print(" s_y : ");
-       Serial.print(y1);
-       Serial.print(" e_x : ");
-       Serial.print(x2);
-       Serial.print(" e_y : ");
-       Serial.print(y2);
-       Serial.print(" c_x : ");
-       Serial.print(x3);
-       Serial.print(" c_y : ");
-       Serial.print(y3);
-       Serial.print(" radius : ");
-       Serial.println(radius);
-*/
-/*
-		double a = (end->x-start->x)*(end->x-start->x) + (end->y-start->y)*(end->y-start->y);
-		double b = 2 * ( (end->x-start->x)*(start->x-center->x) + (end->y-start->y)*(start->y-center->y) );
-		double c = (start->x-center->x)*(start->x-center->x) + (start->y-center->y)*(start->y-center->y) - radius*radius;
-*/
+
     double a = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
     double b = 2.0 * ((x2 - x1) * (x1 - x3) + (y2 - y1) * (y1 - y3));
     double c = (x1 - x3) * (x1 - x3) + (y1 - y3) * (y1 - y3) - ((double) radius / 10.0) * ((double) radius / 10.0);
-/*
-       Serial.print(a);
-       Serial.print(" ");
-       Serial.print(b);
-       Serial.print(" ");
-       Serial.println(c);
-*/
-    //result_t0 = c;
-    //result_t1 = a + b + c;
 
     delta = b * b - 4 * a * c;
-    /*
-       delta = pow(2*( (end->x-start->x)*(start->x-center->x) + (end->y-start->y)*(start->y-center->y) ),2) - 4*(pow(end->x-start->x, 2) + pow(end->y-start->y, 2))*(pow((start->x-center->x), 2)+pow((start->y-center->y),2)-pow(radius,2));
-     */
+
     if (delta >= 0) {
         result_t0 = ((-1) * b + sqrt(delta)) / (2 * a);
         result_t1 = ((-1) * b - sqrt(delta)) / (2 * a);
@@ -4779,6 +4748,9 @@ void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int 
     }
     if ((result.x == my_color_points[11].x) && (result.y == my_color_points[11].y)) {
         avoid_index = 11;
+    }
+    if ((result.x == my_color_points[12].x) && (result.y == my_color_points[12].y)) {
+        result2 = 0;
     }
 
     if ((result.x == my_color_points[3].x) && (result.y == my_color_points[3].y)) {
@@ -4992,15 +4964,22 @@ void PAWN_go_down(void)
         delay_ms(5);
         buttonState = digitalRead(LIFT_SWITCH_UP);
         if ((buttonState == 0) && (error == 0)) {
-            set_new_command(&bot_command_delta, -25);
+            set_new_command(&bot_command_delta, -100);
+            //set_new_command(&bot_command_delta, -25);
+            delay(500);
             lifter_servo.write(117);
             delay(300);
             error = 1;
         } else if ((buttonState == 0) && (error == 1)) {
             set_new_command(&bot_command_delta, -20);
-            lifter_servo.write(75);
+            lifter_servo.write(55);
             delay(300);
             error = 0;
+        }
+
+        if (error == 1) {
+            set_new_command(&bot_command_delta, 120);
+            delay(700);
         }
 
         buttonState = digitalRead(LIFT_SWITCH_DOWN);
