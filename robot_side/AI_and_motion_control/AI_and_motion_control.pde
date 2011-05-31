@@ -93,6 +93,10 @@ void delay_ms(uint16_t millis)
 #define TMP_PAWN                18
 #define RELEASE_BONUS           19
 #define STACK                   20
+#define PAWN_STEAL1             21
+#define PAWN_STEAL2             22
+#define PAWN_STEAL3             23
+#define PAWN_STEAL4             24
 
 
 // I/Os definition
@@ -346,6 +350,7 @@ int already_recalibrate = 0;
 
 int avoid_index = 0;
 
+int claw_request_done = 0;
 
 
 /***********************/
@@ -943,12 +948,14 @@ void loop()
 
     if (global_time_counter == 8) {
         if (transmit_status == 1) {
-            read_RoboClaw_voltage(128);
+            if (claw_request_done == 0)
+                read_RoboClaw_voltage(128);
         }
     }
     if (global_time_counter == 9) {
         if (transmit_status == 1) {
-            check_RoboClaw_response(128);
+            if (claw_request_done == 1)
+                check_RoboClaw_response(128);
         }
     }
 
@@ -2407,177 +2414,196 @@ void loop()
                 has_pawn = NO_PAWN;
                 have_king = 0;
 
-                if (green_point_index == 0) {
-                    // CHercher les rois/reines que l'on aurait pas prit
-                    Serial.println("Oui0 ");
-                    if ((king_taken_our == 0) && (king_taken_opponent == 1)) {
-                        working_side = 1;
-                        have_king = 1;
-                        my_test_point.x = color * 800;
-                        my_test_point.y = taken_king1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                    } else if ((king_taken_our == 1) && (king_taken_opponent == 0)) {
-                        working_side = -1;
-                        have_king = 1;
-                        my_test_point.x = (-1) * color * 800;
-                        my_test_point.y = taken_king1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                        PAWN_close();
-                        PAWN_go_down();
-                    } else if ((queen_taken_our == 0) && (queen_taken_opponent == 1)) {
-                        working_side = 1;
-                        have_king = 2;
-                        my_test_point.x = color * 800;
-                        my_test_point.y = taken_queen1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                    } else if ((queen_taken_our == 1) && (queen_taken_opponent == 0)) {
-                        working_side = -1;
-                        have_king = 2;
-                        my_test_point.x = (-1) * color * 800;
-                        my_test_point.y = taken_queen1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                        PAWN_close();
-                        PAWN_go_down();
-                    } else {
-                        our_green_zone_empty = 1;          // To know if our green zone is empty
-                        opp_green_zone_empty = 1;          // To know if the opponent's green zone is empty
+                // Check if we steal the enemy bonus point
+                if (nearest_index == 16) {
+                    x_topawn = my_color_points[16].x;
+                    y_topawn = my_color_points[16].y;
+                    release_point.x = my_color_points[13].x;
+                    release_point.y = my_color_points[13].y;
+                    nearest_index = 13;
 
-                        my_test_point.x = (-1) * color * INTERMEDIATE_POS;
-                        my_test_point.y = 1500;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                    PAWN_release_for_greenzone();
 
-                        way_point_index = 6;
+                    double ang = angle_coord(&maximus, (-1) * x_topawn, y_topawn) * RAD2DEG;
+                    set_new_command(&bot_command_alpha, ang);
 
-                        has_pawn = GO_BACK;
-                        robot_mode = PLACING_PAWN;
+                    PAWN_go_down();
 
-                        Serial.println((time_in_match * 90) / 10970);
-
-                    }
-
-
-
+                    has_pawn = PAWN_STEAL1;
                 } else {
 
-                    //Serial.print("Non0 ");
-                    //Serial.print(working_side);
-                    //Serial.print(king_taken_our);
-                    //Serial.println(opponent_subzone);
+                    if (green_point_index == 0) {
+                        // CHercher les rois/reines que l'on aurait pas prit
+                        Serial.println("Oui0 ");
+                        if ((king_taken_our == 0) && (king_taken_opponent == 1)) {
+                            working_side = 1;
+                            have_king = 1;
+                            my_test_point.x = color * 800;
+                            my_test_point.y = taken_king1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        } else if ((king_taken_our == 1) && (king_taken_opponent == 0)) {
+                            working_side = -1;
+                            have_king = 1;
+                            my_test_point.x = (-1) * color * 800;
+                            my_test_point.y = taken_king1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                            PAWN_close();
+                            PAWN_go_down();
+                        } else if ((queen_taken_our == 0) && (queen_taken_opponent == 1)) {
+                            working_side = 1;
+                            have_king = 2;
+                            my_test_point.x = color * 800;
+                            my_test_point.y = taken_queen1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        } else if ((queen_taken_our == 1) && (queen_taken_opponent == 0)) {
+                            working_side = -1;
+                            have_king = 2;
+                            my_test_point.x = (-1) * color * 800;
+                            my_test_point.y = taken_queen1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                            PAWN_close();
+                            PAWN_go_down();
+                        } else {
+                            our_green_zone_empty = 1;      // To know if our green zone is empty
+                            opp_green_zone_empty = 1;      // To know if the opponent's green zone is empty
 
-                    // Si on est du coté adverse et que l'on a jamais rencontré le robot adverse (ou chez lui), on retourne de notre coté pour finir d'empiler roi et reine
-                    if ((working_side == -1) && ((king_taken_our != 1) || (queen_taken_our != 1))
-                        && (opponent_subzone == 10 || opponent_subzone == 0 || opponent_subzone == 1)) {
-                        working_side = 1;
-                    }
-                    //Serial.println(working_side);
+                            my_test_point.x = (-1) * color * INTERMEDIATE_POS;
+                            my_test_point.y = 1500;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
 
-                    if (working_side == 1) {
-                        if (king_taken_our == 1) {         // Already take it
-                            if (queen_taken_our == 1) {    // Already take it
-// TODO
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-// TODO
-                            } else if (queen_taken_opponent == 1) {     // Already take the opponent's
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            }
-                        } else {                           // King not taken yet
-                            if (king_taken_opponent == 1) {
-                                have_king = 1;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_king1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_our == 1) {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_opponent == 1) {
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            }
+                            way_point_index = 6;
+
+                            has_pawn = GO_BACK;
+                            robot_mode = PLACING_PAWN;
+
+                            Serial.println((time_in_match * 90) / 10970);
 
                         }
+
+
 
                     } else {
-                        if (king_taken_opponent == 1) {    // Already take it
-                            if (queen_taken_opponent == 1) {    // Already take it
+
+                        //Serial.print("Non0 ");
+                        //Serial.print(working_side);
+                        //Serial.print(king_taken_our);
+                        //Serial.println(opponent_subzone);
+
+                        // Si on est du coté adverse et que l'on a jamais rencontré le robot adverse (ou chez lui), on retourne de notre coté pour finir d'empiler roi et reine
+                        if ((working_side == -1) && ((king_taken_our != 1) || (queen_taken_our != 1))
+                            && (opponent_subzone == 10 || opponent_subzone == 0 || opponent_subzone == 1)) {
+                            working_side = 1;
+                        }
+                        //Serial.println(working_side);
+
+                        if (working_side == 1) {
+                            if (king_taken_our == 1) {     // Already take it
+                                if (queen_taken_our == 1) {     // Already take it
 // TODO
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
 // TODO
-                            } else if (queen_taken_our == 1) {  // Already take the opponent's
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_opponent == 1) { // Already take the opponent's
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+                            } else {                       // King not taken yet
+                                if (king_taken_opponent == 1) {
+                                    have_king = 1;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_king1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_our == 1) {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_opponent == 1) {
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+
                             }
-                        } else {                           // King not taken yet
-                            if (king_taken_our == 1) {
-                                have_king = 1;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_king1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_opponent == 1) {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_our == 1) {
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
+
+                        } else {
+                            if (king_taken_opponent == 1) {     // Already take it
+                                if (queen_taken_opponent == 1) {        // Already take it
+// TODO
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+// TODO
+                                } else if (queen_taken_our == 1) {      // Already take the opponent's
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+                            } else {                       // King not taken yet
+                                if (king_taken_our == 1) {
+                                    have_king = 1;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_king1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_opponent == 1) {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_our == 1) {
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+
                             }
+
 
                         }
 
-
                     }
-
                 }
 
                 break;
@@ -2714,11 +2740,70 @@ void loop()
                 has_pawn = prev_has_pawn;
                 break;
 
+            case PAWN_STEAL1:
+                Serial.println("PAWN_STEAL1");
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+                set_new_command(&bot_command_delta, 300);
+                delay(1000);
+                PAWN_grip_pawn();
+                delay(200);
+                set_new_command(&bot_command_delta, -300);
+                delay(1000);
+
+
+                nearest_index = 13;
+                x_topawn = my_color_points[nearest_index].x;
+                y_topawn = my_color_points[nearest_index].y;
+                release_point.x = my_color_points[nearest_index].x;
+                release_point.y = my_color_points[nearest_index].y;
+
+                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                if (sens == 0) {                           // Front
+                    goto_xy(x_topawn, y_topawn);
+                } else {                                   // Back
+                    goto_xy_back(x_topawn, y_topawn);
+                }
+
+                //PAWN_go_up();
+
+
+
+                has_pawn = PAWN_STEAL2;
+                break;
+
+
+            case PAWN_STEAL2:
+
+
+                PAWN_release_for_greenzone();
+                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                delay(100);
+                set_new_command(&bot_command_delta, (-200));    // TO ADJUST
+
+                PAWN_go_up();
+                pawn_stack = 0;
+                release_priorities[nearest_index] = 99;
+                have_king = 0;
+                has_pawn = BACK;
+
+                placed_pawn[placed_pawn_index].x = my_color_points[nearest_index].x;
+                placed_pawn[placed_pawn_index].y = my_color_points[nearest_index].y;
+                placed_pawn_index++;
+
+                break;
 
 
             }
 
         }
+
+
+
+
+
+
 
 
 
@@ -3675,7 +3760,7 @@ void read_RoboClaw_voltage(char addr)
 
     Serial2.print(addr, BYTE);
     Serial2.print(24, BYTE);
-
+    claw_request_done = 1;
     transmit_status = 1;
 }
 
@@ -3690,10 +3775,11 @@ void check_RoboClaw_response(char addr)
     } else {
         digitalWrite(RESET_ROBOCLAW, LOW);
         Serial.println("RoboClaw not responding anymore");
-        delay(5);
+        delay(10);
         digitalWrite(RESET_ROBOCLAW, HIGH);
-        delay(500);
+        delay(600);
     }
+    claw_request_done = 0;
     transmit_status = 1;
 
 }
