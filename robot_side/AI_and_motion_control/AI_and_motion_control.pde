@@ -139,7 +139,7 @@ void delay_ms(uint16_t millis)
 #define ALPHA_MAX_SPEED         25000                      //24000                      //25000//13000                      // 9000
 #define ALPHA_MAX_ACCEL         300
 #define ALPHA_MAX_DECEL         3500                       //2500
-#define DELTA_MAX_SPEED         50000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED         55000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK    35000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK_PAWN    45000
 #define DELTA_MAX_ACCEL         1000                       //900                        //600
