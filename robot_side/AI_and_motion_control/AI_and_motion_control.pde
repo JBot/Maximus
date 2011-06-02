@@ -122,6 +122,7 @@ void delay_ms(uint16_t millis)
 #define BEACON_WEST_PIN	        49                         // A DEFINIR
 #define LEFT_REAR_SENSOR        43
 #define RIGHT_REAR_SENSOR       42
+#define NEW_KING_SENSOR         48                         // MICROSWITCH
 
 #define RESET_ROBOCLAW          45
 
@@ -143,7 +144,7 @@ void delay_ms(uint16_t millis)
 #define ALPHA_MAX_SPEED         25000                      //24000                      //25000//13000                      // 9000
 #define ALPHA_MAX_ACCEL         300
 #define ALPHA_MAX_DECEL         3500                       //2500
-#define DELTA_MAX_SPEED         55000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED         50000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK    35000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK_PAWN    45000
 #define DELTA_MAX_ACCEL         1000                       //900                        //600
@@ -600,6 +601,8 @@ void setup()
     pinMode(LEFT_REAR_SENSOR, INPUT);
     pinMode(RIGHT_REAR_SENSOR, INPUT);
     pinMode(PAWN_SENSOR, INPUT);
+    pinMode(NEW_KING_SENSOR, INPUT);
+
 
 
     // Timer/Counter 1 initialization
@@ -802,6 +805,8 @@ void setup()
         //set_new_command(&bot_command_delta, 1256);
         delay(30);
 
+        Serial.print(" NEW KING SENSOR : ");
+        Serial.println(digitalRead(NEW_KING_SENSOR));
 
 
         Serial.print(maximus.pos_X);
@@ -809,6 +814,7 @@ void setup()
         Serial.print(maximus.pos_Y);
         Serial.print(" ");
         Serial.println(maximus.theta * RAD2DEG);
+
 
 
         int sensorValue = 0;
@@ -1713,7 +1719,7 @@ void loop()
                        has_pawn = AVOIDING_OPP1;
                      */
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == 1) && (opponent_subzone == 3 || opponent_subzone == 2)) {
-
+                    // We are in our side, the opponent is in the middle and we want to stay in our side
                     while ((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
                            || (front_distance_up_left < FRONT_IR_DISTANCE)) {
 
@@ -1993,6 +1999,11 @@ void loop()
                 have_king = test_barcode;
             }
 
+            if (have_king == 0) {
+                sensorValue = digitalRead(NEW_KING_SENSOR);
+                if (sensorValue == HIGH)
+                    have_king = 2;                         // Reine
+            }
 
             sensorValue = digitalRead(PAWN_SENSOR);
 
@@ -2109,8 +2120,12 @@ void loop()
             case NO_PAWN:
                 Serial.println("NO_PAWN");
                 barCode_flush();
+
                 pawn_found = 0;
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+
+                PAWN_release_for_greenzone();
+                PAWN_go_med();
 
 /*                if (green_points[green_point_index].x < 0)
                     goto_xy(-900, green_points[green_point_index].y);
@@ -2119,7 +2134,7 @@ void loop()
 */
                 goto_xy(working_side * green_points[green_point_index].x, my_test_point.y);
 
-                PAWN_release_for_greenzone();
+
                 PAWN_go_down();
 
                 //has_pawn = TURNING_DIRECTION;
