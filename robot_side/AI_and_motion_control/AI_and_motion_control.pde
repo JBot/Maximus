@@ -150,7 +150,7 @@ void delay_ms(uint16_t millis)
 #define DELTA_MAX_ACCEL         1000                       //900                        //600
 #define DELTA_MAX_DECEL         10000                      //4000                       //1800
 
-#define FRONT_US_DISTANCE       49
+#define FRONT_US_DISTANCE       48
 #define REAR_US_DISTANCE        35
 #define FRONT_IR_DISTANCE       39
 
@@ -1424,7 +1424,7 @@ void loop()
             case GO_BACK:
                 PAWN_release_pawn();
                 delta_motor.max_speed = DELTA_MAX_SPEED;
-                if (nb_pawn_first_step > 1) {                 // Phase 1 done
+                if (nb_pawn_first_step > 1) {              // Phase 1 done
                     green_point_index = 3;
                     my_test_point.y = green_points[green_point_index].y;
                     if (green_points[green_point_index].x < 0)
@@ -1567,7 +1567,7 @@ void loop()
 
                 if ((is_in_our_side(&maximus) == 1) && (working_side == -1) && (opponent_subzone == 2)) {
                     // We want to go on opponent side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
 
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
@@ -1583,7 +1583,7 @@ void loop()
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == -1) && (opponent_subzone == 3)) {
                     // We want to go on opponent side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
 
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
@@ -1599,7 +1599,7 @@ void loop()
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 3)) {
                     // We want to go on our side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
 
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
@@ -1615,7 +1615,7 @@ void loop()
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 2)) {
                     // We want to go on our side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
 
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
@@ -1631,12 +1631,12 @@ void loop()
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == 1) && (opponent_subzone == 4 || opponent_subzone == 5)) {
                     // We are in our side, and the opponent too
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
 
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
-                    set_new_command(&bot_command_delta, -50);
+                    set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
                     delay(500);
                     stop_robot();
@@ -4323,8 +4323,8 @@ struct Point estimate_center(struct robot *my_robot)
 
     //read_down_IR();
 
-        result.x = my_robot->pos_X + 10.0 * (opponent_sensor + 5) * cos(my_robot->theta);
-        result.y = my_robot->pos_Y + 10.0 * (opponent_sensor + 5) * sin(my_robot->theta);
+    result.x = my_robot->pos_X + 10.0 * (opponent_sensor + 5) * cos(my_robot->theta);
+    result.y = my_robot->pos_Y + 10.0 * (opponent_sensor + 5) * sin(my_robot->theta);
 
 /*
     if ((front_distance_up_right < DETECTION_LIMIT) && (opponent_sensor > DETECTION_LIMIT_MIDDLE)
@@ -5008,6 +5008,7 @@ void PAWN_go_down(void)
         delay_ms(5);
         buttonState = digitalRead(LIFT_SWITCH_UP);
         if ((buttonState == 0) && (error == 0)) {
+            lifter_servo.write(90);
             set_new_command(&bot_command_delta, -100);
             //set_new_command(&bot_command_delta, -25);
             delay(700);
@@ -5015,6 +5016,7 @@ void PAWN_go_down(void)
             delay(300);
             error = 1;
         } else if ((buttonState == 0) && (error == 1)) {
+            lifter_servo.write(90);
             set_new_command(&bot_command_delta, -20);
             lifter_servo.write(55);
             delay(300);
