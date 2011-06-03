@@ -144,7 +144,7 @@ void delay_ms(uint16_t millis)
 #define ALPHA_MAX_SPEED         25000                      //24000                      //25000//13000                      // 9000
 #define ALPHA_MAX_ACCEL         300
 #define ALPHA_MAX_DECEL         3500                       //2500
-#define DELTA_MAX_SPEED         50000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED         45000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK    35000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK_PAWN    45000
 #define DELTA_MAX_ACCEL         1000                       //900                        //600
@@ -350,13 +350,13 @@ int opp_green_zone_empty = 0;                              // To know if the opp
 struct Point subzones[6];
 struct Point avoid_points[2];
 int opponent_subzone = 10;
-
 int already_recalibrate = 0;
 
 int avoid_index = 0;
 
 int claw_request_done = 0;
 
+int nb_pawn_first_step = 0;
 
 /***********************/
 /* INTERRUPT FUNCTIONS */
@@ -1054,8 +1054,7 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         // OPPONENT DETECTION 
-        if (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
-             || (front_distance_up_left < FRONT_IR_DISTANCE))
+        if (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0))
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
             struct Point test_point;
@@ -1111,11 +1110,12 @@ void loop()
 
                 }
 
-                stop_robot();
+                direct_stop_robot();
                 delay(200);
+                set_new_command(&bot_command_delta, -60);
 
-                while (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
-                        || (front_distance_up_left < FRONT_IR_DISTANCE))
+
+                while (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0))
                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
                     Wire.beginTransmission(FRONT_US);
@@ -1149,7 +1149,22 @@ void loop()
                 Serial.println(front_distance_up_left);
 
                 if (has_pawn == INTERMEDIATE_RELEASE) {
-                    goto_xy(color * INTERMEDIATE_POS, 1500);
+                    //goto_xy(color * INTERMEDIATE_POS, 1500);
+                    nearest_index = 6;
+                    x_topawn = my_color_points[nearest_index].x;
+                    y_topawn = my_color_points[nearest_index].y;
+                    release_point.x = my_color_points[nearest_index].x;
+                    release_point.y = my_color_points[nearest_index].y;
+
+
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                    Serial.println("Deuxieme pion");
+                    has_pawn = GOTO_RELEASE;
                 } else {
                     goto_xy(release_point.x, release_point.y);
                 }
@@ -1401,13 +1416,15 @@ void loop()
 
                 have_king = 0;
 
+                nb_pawn_first_step++;
+
                 has_pawn = GO_BACK;
                 break;
 
             case GO_BACK:
                 PAWN_release_pawn();
                 delta_motor.max_speed = DELTA_MAX_SPEED;
-                if (nearest_index == 16) {                 // Phase 1 done
+                if (nb_pawn_first_step > 1) {                 // Phase 1 done
                     green_point_index = 3;
                     my_test_point.y = green_points[green_point_index].y;
                     if (green_points[green_point_index].x < 0)
@@ -1495,8 +1512,7 @@ void loop()
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
                                                                                                   || (has_pawn == AVOIDING2))) {
 */
-        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE) || (front_distance_up_right < FRONT_IR_DISTANCE)
-             || (front_distance_up_left < FRONT_IR_DISTANCE))
+        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE))
             && (has_pawn != TAKE_PAWN)
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
                                                                                                   || (has_pawn == AVOIDING2))) {
@@ -1720,8 +1736,7 @@ void loop()
                      */
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == 1) && (opponent_subzone == 3 || opponent_subzone == 2)) {
                     // We are in our side, the opponent is in the middle and we want to stay in our side
-                    while ((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
-                           || (front_distance_up_left < FRONT_IR_DISTANCE)) {
+                    while ((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0)) {
 
                         Wire.beginTransmission(FRONT_US);
                         Wire.send(0x02);
@@ -1993,16 +2008,29 @@ void loop()
             } else {
                 barCode_timer--;
             }
-
+/*
             if (have_king == 0) {
                 int test_barcode = barCode_checkifdata();
                 have_king = test_barcode;
             }
-
+*/
             if (have_king == 0) {
                 sensorValue = digitalRead(NEW_KING_SENSOR);
-                if (sensorValue == HIGH)
-                    have_king = 2;                         // Reine
+                if (sensorValue == HIGH) {
+                    if (is_in_our_side(&maximus) == 1) {
+                        if (queen_taken_our == 1) {
+                            have_king = 1;                 // Roi
+                        } else {
+                            have_king = 2;
+                        }
+                    } else {
+                        if (queen_taken_opponent == 1) {
+                            have_king = 1;                 // Roi
+                        } else {
+                            have_king = 2;
+                        }
+                    }
+                }
             }
 
             sensorValue = digitalRead(PAWN_SENSOR);
@@ -2122,7 +2150,7 @@ void loop()
                 barCode_flush();
 
                 pawn_found = 0;
-                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                delta_motor.max_speed = DELTA_MAX_SPEED_BACK - 5000;
 
                 PAWN_release_for_greenzone();
                 PAWN_go_med();
@@ -3096,8 +3124,7 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
-        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
-             || (front_distance_up_left < FRONT_IR_DISTANCE))
+        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE && have_king == 0))
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
             prev_has_pawn = has_pawn;
 
@@ -3146,8 +3173,7 @@ void loop()
 
 
 
-                while (((opponent_sensor < FRONT_US_DISTANCE && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE)
-                        || (front_distance_up_left < FRONT_IR_DISTANCE))
+                while (((opponent_sensor < FRONT_US_DISTANCE && have_king == 0))
                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
 
                     Wire.beginTransmission(FRONT_US);
@@ -3594,28 +3620,28 @@ void init_color_points(void)
     blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
 
     /* Green points */
-    green_points[0].x = (color) * 1200;
-    green_points[1].x = (color) * 1200;
-    green_points[2].x = (color) * 1200;
+    green_points[0].x = (color) * 1190;
+    green_points[1].x = (color) * 1190;
+    green_points[2].x = (color) * 1190;
     green_points[0].y = 690;
     green_points[1].y = 970;
     green_points[2].y = 1250;
 
-    green_points[3].x = (color) * 1200;
-    green_points[4].x = (color) * 1200;
-    green_points[5].x = (-color) * 1200;
+    green_points[3].x = (color) * 1190;
+    green_points[4].x = (color) * 1190;
+    green_points[5].x = (-color) * 1190;
     green_points[3].y = 1530;
     green_points[4].y = 1810;
     green_points[5].y = 690;
 
-    green_points[6].x = (-color) * 1200;
-    green_points[7].x = (-color) * 1200;
-    green_points[8].x = (-color) * 1200;
+    green_points[6].x = (-color) * 1190;
+    green_points[7].x = (-color) * 1190;
+    green_points[8].x = (-color) * 1190;
     green_points[6].y = 970;
     green_points[7].y = 1250;
     green_points[8].y = 1530;
 
-    green_points[9].x = (-color) * 1200;
+    green_points[9].x = (-color) * 1190;
     green_points[9].y = 1810;
 
     release_priorities[0] = 2;
@@ -3628,7 +3654,7 @@ void init_color_points(void)
 
     release_priorities[6] = 4;
     release_priorities[7] = 3;
-    release_priorities[8] = 5;
+    release_priorities[8] = 15;
 
     release_priorities[9] = 3;
     release_priorities[10] = 3;
@@ -4297,7 +4323,10 @@ struct Point estimate_center(struct robot *my_robot)
 
     //read_down_IR();
 
+        result.x = my_robot->pos_X + 10.0 * (opponent_sensor + 5) * cos(my_robot->theta);
+        result.y = my_robot->pos_Y + 10.0 * (opponent_sensor + 5) * sin(my_robot->theta);
 
+/*
     if ((front_distance_up_right < DETECTION_LIMIT) && (opponent_sensor > DETECTION_LIMIT_MIDDLE)
         && (front_distance_up_left > DETECTION_LIMIT)) {
 
@@ -4334,7 +4363,7 @@ struct Point estimate_center(struct robot *my_robot)
         result.y = my_robot->pos_Y + 10 * (opponent_sensor + 5) * sin(my_robot->theta);
 
     }
-
+*/
     return result;
 }
 
@@ -4981,7 +5010,7 @@ void PAWN_go_down(void)
         if ((buttonState == 0) && (error == 0)) {
             set_new_command(&bot_command_delta, -100);
             //set_new_command(&bot_command_delta, -25);
-            delay(500);
+            delay(700);
             lifter_servo.write(117);
             delay(300);
             error = 1;
@@ -4994,7 +5023,7 @@ void PAWN_go_down(void)
 
         if (error == 1) {
             set_new_command(&bot_command_delta, 120);
-            delay(700);
+            delay(800);
         }
 
         buttonState = digitalRead(LIFT_SWITCH_DOWN);
