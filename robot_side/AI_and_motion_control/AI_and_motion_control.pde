@@ -93,6 +93,10 @@ void delay_ms(uint16_t millis)
 #define TMP_PAWN                18
 #define RELEASE_BONUS           19
 #define STACK                   20
+#define PAWN_STEAL1             21
+#define PAWN_STEAL2             22
+#define PAWN_STEAL3             23
+#define PAWN_STEAL4             24
 
 
 // I/Os definition
@@ -118,9 +122,12 @@ void delay_ms(uint16_t millis)
 #define BEACON_WEST_PIN	        49                         // A DEFINIR
 #define LEFT_REAR_SENSOR        43
 #define RIGHT_REAR_SENSOR       42
+#define NEW_KING_SENSOR         48                         // MICROSWITCH
 
 #define RESET_ROBOCLAW          45
 
+#define FRONT_US                0x71
+#define REAR_US                 0x72
 
 #define LIFT_GO_UP		HIGH
 #define LIFT_GO_DOWN		LOW
@@ -137,22 +144,23 @@ void delay_ms(uint16_t millis)
 #define ALPHA_MAX_SPEED         25000                      //24000                      //25000//13000                      // 9000
 #define ALPHA_MAX_ACCEL         300
 #define ALPHA_MAX_DECEL         3500                       //2500
-#define DELTA_MAX_SPEED         50000                      //45000                      //50000//37000
+#define DELTA_MAX_SPEED         45000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK    35000                      //45000                      //50000//37000
 #define DELTA_MAX_SPEED_BACK_PAWN    45000
 #define DELTA_MAX_ACCEL         1000                       //900                        //600
 #define DELTA_MAX_DECEL         10000                      //4000                       //1800
 
+#define FRONT_US_DISTANCE       48
+#define REAR_US_DISTANCE        35
+#define FRONT_IR_DISTANCE       39
 
 #define NO_SENSORS
 #define HOME                    -120
+#define INTERMEDIATE_POS        130
 //#define HOME                    0
 //#define SERIAL_COMMANDS         0
-//#define OPPONENT_DETECTION      0
+#define OPPONENT_DETECTION      0
 #define HUGE_STACKS             0
-#define ENDLESS_GAME            0
-
-
 
 /***********************/
 /* Specific structures */
@@ -245,6 +253,9 @@ int front_distance_up_right = 50;
 //int side_king_sensor = 60;
 //int side_king_sensor2 = 0;
 int opponent_sensor = 60;
+int opponent_sensor_rear = 60;
+int opponent_sensor_swap1 = 60;
+int opponent_sensor_swap2 = 60;
 
 int side_sensor_on = 1;
 
@@ -274,6 +285,7 @@ int placed_pawn_index = 0;
 struct Point release_point;
 struct Point my_test_point;
 struct Point the_point;
+struct Point avoidingopp_point;
 
 char start_MOTION = 0;
 char turn_counter = 0;
@@ -337,9 +349,16 @@ int pawn_found = 0;
 int our_green_zone_empty = 0;                              // To know if our green zone is empty
 int opp_green_zone_empty = 0;                              // To know if the opponent's green zone is empty
 
-struct Point subzones[10];
-struct Point avoid_points[4];
-int opponent_subzone = 0;
+struct Point subzones[6];
+struct Point avoid_points[2];
+int opponent_subzone = 10;
+int already_recalibrate = 0;
+
+int avoid_index = 0;
+
+int claw_request_done = 0;
+
+int nb_pawn_first_step = 0;
 
 int avoid_index = 0;
 
@@ -444,6 +463,7 @@ ISR(TIMER1_OVF_vect)
         Serial.println("Alive2");
 
     if (time_in_match > 10970) {                           // End of the match
+//    if (time_in_match > 20970) {                           // End of the match
         if (time_in_match < 21900) {
 #ifdef ENDLESS_GAME
 
@@ -598,6 +618,8 @@ void setup()
     pinMode(LEFT_REAR_SENSOR, INPUT);
     pinMode(RIGHT_REAR_SENSOR, INPUT);
     pinMode(PAWN_SENSOR, INPUT);
+    pinMode(NEW_KING_SENSOR, INPUT);
+
 
 
     // Timer/Counter 1 initialization
@@ -785,7 +807,15 @@ void setup()
             }
         }
 
-        Wire.beginTransmission(0x70);
+
+
+
+        Wire.beginTransmission(FRONT_US);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        Wire.beginTransmission(REAR_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -794,29 +824,49 @@ void setup()
         //set_new_command(&bot_command_delta, 1256);
         delay(30);
 
+        Serial.print(" NEW KING SENSOR : ");
+        Serial.println(digitalRead(NEW_KING_SENSOR));
 
 
-//    Serial.print(maximus.pos_X);
-//    Serial.print(" ");
-//    Serial.print(maximus.pos_Y);
-//    Serial.print(" ");
-//    Serial.println(maximus.theta * RAD2DEG);
+        Serial.print(maximus.pos_X);
+        Serial.print(" ");
+        Serial.print(maximus.pos_Y);
+        Serial.print(" ");
+        Serial.println(maximus.theta * RAD2DEG);
+
 
 
         int sensorValue = 0;
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x02);
         Wire.endTransmission();
 
-        Wire.requestFrom(0x70, 2);
+        Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
-            side_king_sensor2 = Wire.receive();
-            side_king_sensor2 = side_king_sensor2 << 8;
-            side_king_sensor2 |= Wire.receive();
+            opponent_sensor = Wire.receive();
+            opponent_sensor = opponent_sensor << 8;
+            opponent_sensor |= Wire.receive();
+        }
+
+        Wire.beginTransmission(REAR_US);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(REAR_US, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor_rear = Wire.receive();
+            opponent_sensor_rear = opponent_sensor_rear << 8;
+            opponent_sensor_rear |= Wire.receive();
         }
 //        read_down_IR();
+
+        Serial.print(" FRONT US : ");
+        Serial.print(opponent_sensor);
+        Serial.print(" REAR US : ");
+        Serial.print(opponent_sensor_rear);
 
         sense_opponent_ir();
 
@@ -849,7 +899,7 @@ void setup()
 //        Serial.print(front_distance_down_middle);
 //        Serial.print(" right : ");
 //        Serial.print(front_distance_down_right);
-        Serial.print(" PAWN : ");
+/*        Serial.print(" PAWN : ");
         Serial.print(pawn_distance);
         Serial.print(" SIDE2 : ");
         Serial.print(side_king_sensor2);
@@ -858,7 +908,7 @@ void setup()
         Serial.print(front_distance_up_right);
         Serial.print(" OPP_LEFT : ");
         Serial.println(front_distance_up_left);
-
+*/
 
 
 //        if (front_distance_down_right < 30)
@@ -930,7 +980,7 @@ void setup()
 
     Serial.println("START");
 
-    Wire.beginTransmission(0x70);
+    Wire.beginTransmission(FRONT_US);
     Wire.send(0x00);
     Wire.send(0x51);
     Wire.endTransmission();
@@ -952,19 +1002,20 @@ void loop()
 /*
     if (global_time_counter == 8) {
         if (transmit_status == 1) {
-            read_RoboClaw_voltage(128);
+            if (claw_request_done == 0)
+                read_RoboClaw_voltage(128);
         }
     }
     if (global_time_counter == 9) {
         if (transmit_status == 1) {
-            check_RoboClaw_response(128);
+            if (claw_request_done == 1)
+                check_RoboClaw_response(128);
         }
     }
 */
 
     if (global_time_counter > 50) {
         Serial.println("Alive");
-        //Serial3.print("h");
         global_time_counter = 0;
     }
 
@@ -981,12 +1032,12 @@ void loop()
         /* Static phase to secure the first 2 pawns */
     case SECURE_PAWN:
 
-/*
-        Wire.beginTransmission(0x70);
+
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x02);
         Wire.endTransmission();
 
-        Wire.requestFrom(0x70, 2);
+        Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
             opponent_sensor = Wire.receive();
@@ -994,7 +1045,29 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
-        Wire.beginTransmission(0x70);
+        opponent_sensor_swap2 = opponent_sensor;
+        opponent_sensor = (opponent_sensor + opponent_sensor_swap1) / 2;
+        opponent_sensor_swap1 = opponent_sensor;
+
+        Wire.beginTransmission(REAR_US);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(REAR_US, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor_rear = Wire.receive();
+            opponent_sensor_rear = opponent_sensor_rear << 8;
+            opponent_sensor_rear |= Wire.receive();
+        }
+
+
+        Wire.beginTransmission(FRONT_US);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        Wire.beginTransmission(REAR_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -1004,14 +1077,17 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         // OPPONENT DETECTION 
-        if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
-            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
-            prev_has_pawn = has_pawn;
+        if (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0))
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
 
             struct Point test_point;
             test_point = estimate_center(&maximus);
 
             if ((check_point_in_map(&test_point) != 0)) {
+
+                prev_has_pawn = has_pawn;
+
+
                 Serial.print("Opponent detected ");
                 Serial.print(opponent_sensor);
                 Serial.print(" ");
@@ -1029,9 +1105,9 @@ void loop()
                     } else if ((abs(test_point.x) < 350) && (test_point.y > 1050)) {
                         opponent_subzone = 3;
                     } else if ((test_point.x < -350) && (test_point.y < 1050)) {
-                        opponent_subzone = 1;
+                        opponent_subzone = 0;
                     } else if ((test_point.x < -350) && (test_point.y > 1050)) {
-                        opponent_subzone = 2;
+                        opponent_subzone = 1;
                     }
                 } else {
                     if ((test_point.x > 350) && (test_point.y < 1050)) {
@@ -1050,14 +1126,131 @@ void loop()
                 }
 
 
+                Serial3.print("o");
+
+
+                if (has_pawn == INTERMEDIATE_RELEASE) {
+
+                }
+
+                direct_stop_robot();
+                delay(200);
+                set_new_command(&bot_command_delta, -60);
+
+
+                while (((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0))
+                       && (has_pawn != GO_BACK) && (has_pawn != BACK) && (bot_command_alpha.state == COMMAND_DONE)) {
+
+                    Wire.beginTransmission(FRONT_US);
+                    Wire.send(0x02);
+                    Wire.endTransmission();
+
+                    Wire.requestFrom(FRONT_US, 2);
+
+                    if (2 <= Wire.available()) {
+                        opponent_sensor = Wire.receive();
+                        opponent_sensor = opponent_sensor << 8;
+                        opponent_sensor |= Wire.receive();
+                    }
+
+                    Wire.beginTransmission(FRONT_US);
+                    Wire.send(0x00);
+                    Wire.send(0x51);
+                    Wire.endTransmission();
+
+                    sense_opponent_ir();
+                    delay(70);
+
+
+                }
+
+                Serial.print("Opponent gone ");
+                Serial.print(opponent_sensor);
+                Serial.print(" ");
+                Serial.print(front_distance_up_right);
+                Serial.print(" ");
+                Serial.println(front_distance_up_left);
+
+                if (has_pawn == INTERMEDIATE_RELEASE) {
+                    //goto_xy(color * INTERMEDIATE_POS, 1500);
+                    nearest_index = 6;
+                    x_topawn = my_color_points[nearest_index].x;
+                    y_topawn = my_color_points[nearest_index].y;
+                    release_point.x = my_color_points[nearest_index].x;
+                    release_point.y = my_color_points[nearest_index].y;
+
+
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                    Serial.println("Deuxieme pion");
+                    has_pawn = GOTO_RELEASE;
+                } else {
+                    goto_xy(release_point.x, release_point.y);
+                }
+
+
+
 
 
             }
-            
-            
+
+
         }
 #endif
-*/
+
+
+#ifdef OPPONENT_DETECTION
+        /* OPPONENT DETECTION */
+        if (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) && (has_pawn == GO_BACK)) {
+
+
+            Serial.print("Opponent detected (BACK) ");
+            Serial.println(opponent_sensor_rear);
+
+            Serial3.print("o");
+
+            stop_robot();
+
+            while (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE))) {
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x02);
+                Wire.endTransmission();
+
+                Wire.requestFrom(REAR_US, 2);
+
+                if (2 <= Wire.available()) {
+                    opponent_sensor_rear = Wire.receive();
+                    opponent_sensor_rear = opponent_sensor_rear << 8;
+                    opponent_sensor_rear |= Wire.receive();
+                }
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x00);
+                Wire.send(0x51);
+                Wire.endTransmission();
+
+
+                delay(70);
+
+
+            }
+
+            double dist = distance_coord(&maximus, my_color_points[nearest_index].x, my_color_points[nearest_index].y);
+            if (dist < (240 + 150)) {
+
+                set_new_command(&bot_command_delta, (-1) * (150 - abs(dist - 240)));
+                delay(100);
+
+            }
+
+        }
+#endif
+
 
 
 
@@ -1075,27 +1268,29 @@ void loop()
 
                 if (nb_check == 0) {
 
-                    stop_robot();
-
-                    delta_motor.max_speed = 20000;
-
-                    Serial.println("Take pawn");
-//                    go_grab_pawn = 0;
-
-                    delay(100);
-                    set_new_command(&bot_command_delta, 50);
-
-                    PAWN_release_pawn();
-                    PAWN_go_down();
-                    PAWN_grip_pawn();
-
-                    delta_motor.max_speed = DELTA_MAX_SPEED;
-
-                    // Go put the pawn on the right space
-                    delay(100);
-                    PAWN_mini_go_up();
 
                     if (release_priorities[0] != 20) {     // It's the first pawn we take
+
+                        stop_robot();
+
+                        delta_motor.max_speed = 20000;
+
+                        Serial.println("Take pawn");
+                        go_grab_pawn = 0;
+
+                        delay(100);
+                        set_new_command(&bot_command_delta, 50);
+
+                        PAWN_release_pawn();
+                        PAWN_go_down();
+                        PAWN_grip_pawn();
+
+                        delta_motor.max_speed = DELTA_MAX_SPEED;
+
+                        // Go put the pawn on the right space
+                        delay(100);
+                        PAWN_mini_go_up();
+
 
                         x_topawn = my_color_points[0].x;
                         y_topawn = my_color_points[0].y;
@@ -1112,6 +1307,33 @@ void loop()
                         Serial.println("Premier pion");
                         has_pawn = GOTO_RELEASE;
                     } else {                               // Pawn fot the secured zone
+
+                        while (maximus.pos_Y < 1350) {
+                            delay(50);
+                        }
+
+                        stop_robot();
+
+                        delta_motor.max_speed = 20000;
+
+                        Serial.println("Take pawn");
+                        go_grab_pawn = 0;
+
+                        delay(100);
+                        set_new_command(&bot_command_delta, 50);
+
+                        PAWN_release_pawn();
+                        PAWN_go_down();
+                        PAWN_grip_pawn();
+
+                        delta_motor.max_speed = DELTA_MAX_SPEED;
+
+                        // Go put the pawn on the right space
+                        delay(100);
+                        PAWN_mini_go_up();
+
+
+
                         x_topawn = my_color_points[16].x;
                         y_topawn = my_color_points[16].y;
                         release_point.x = my_color_points[16].x;
@@ -1119,7 +1341,7 @@ void loop()
                         nearest_index = 16;
 
                         //goto_xy(0, 1600);
-                        goto_xy(HOME, 1600);               // POUR LES TESTS A LA MAISON
+                        goto_xy(color * INTERMEDIATE_POS, 1500);        // POUR LES TESTS A LA MAISON
 
                         Serial.println("Second pion");
                         has_pawn = INTERMEDIATE_RELEASE;
@@ -1146,6 +1368,9 @@ void loop()
             case NO_PAWN:
                 Serial.println("NO_PAWN");
                 goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+
+                release_point.x = way_points[way_point_index].x;
+                release_point.y = way_points[way_point_index].y;
 /*
                 Serial.print(".Go to :");
                 Serial.print(way_points[way_point_index].x);
@@ -1159,7 +1384,10 @@ void loop()
                 break;
 
             case INTERMEDIATE_RELEASE:
-                Serial.println("INTERMEDIATE_RELEASE");
+
+                release_point.x = x_topawn;
+                release_point.y = y_topawn;
+
                 sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                 if (sens == 0) {                           // Front
                     goto_xy(x_topawn, y_topawn);
@@ -1171,12 +1399,37 @@ void loop()
                 break;
 
             case GOTO_RELEASE:                            // The robot have a pawn and is on his release point
-                Serial.println("GOTO_RELEASE");
+                delay(300);
                 PAWN_release_for_greenzone();
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                set_new_command(&bot_command_delta, (-150));    // TO ADJUST
 
-                PAWN_go_up();
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x00);
+                Wire.send(0x51);
+                Wire.endTransmission();
+
+                delay(70);
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x02);
+                Wire.endTransmission();
+
+                Wire.requestFrom(REAR_US, 2);
+
+                if (2 <= Wire.available()) {
+                    opponent_sensor_rear = Wire.receive();
+                    opponent_sensor_rear = opponent_sensor_rear << 8;
+                    opponent_sensor_rear |= Wire.receive();
+                }
+
+                if ((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) {
+                    PAWN_go_up();
+                    set_new_command(&bot_command_delta, (-150));
+                } else {
+                    set_new_command(&bot_command_delta, (-150));        // TO ADJUST
+                    PAWN_go_up();
+                }
+
 
                 pawn_stack = 0;
 
@@ -1187,6 +1440,8 @@ void loop()
 
                 have_king = 0;
 
+                nb_pawn_first_step++;
+
                 has_pawn = GO_BACK;
                 break;
 
@@ -1194,7 +1449,7 @@ void loop()
                 Serial.println("GO_BACK");
                 PAWN_release_pawn();
                 delta_motor.max_speed = DELTA_MAX_SPEED;
-                if (nearest_index == 16) {                 // Phase 1 done
+                if (nb_pawn_first_step > 1) {              // Phase 1 done
                     green_point_index = 3;
                     my_test_point.y = green_points[green_point_index].y;
                     if (green_points[green_point_index].x < 0)
@@ -1206,6 +1461,9 @@ void loop()
                     has_pawn = NO_PAWN;
                 } else {                                   // Go take the second pawn
                     goto_xy(way_points[2].x, way_points[2].y);
+
+                    release_point.x = way_points[2].x;
+                    release_point.y = way_points[2].y;
 
                     Serial.print(".Go to :");
                     Serial.print(way_points[2].x);
@@ -1235,11 +1493,11 @@ void loop()
 
 
 
-        Wire.beginTransmission(0x70);
+        Wire.beginTransmission(FRONT_US);
         Wire.send(0x02);
         Wire.endTransmission();
 
-        Wire.requestFrom(0x70, 2);
+        Wire.requestFrom(FRONT_US, 2);
 
         if (2 <= Wire.available()) {
             opponent_sensor = Wire.receive();
@@ -1247,7 +1505,29 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
-        Wire.beginTransmission(0x70);
+        opponent_sensor_swap2 = opponent_sensor;
+        opponent_sensor = (opponent_sensor + opponent_sensor_swap1) / 2;
+        opponent_sensor_swap1 = opponent_sensor;
+
+        Wire.beginTransmission(REAR_US);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(REAR_US, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor_rear = Wire.receive();
+            opponent_sensor_rear = opponent_sensor_rear << 8;
+            opponent_sensor_rear |= Wire.receive();
+        }
+
+
+        Wire.beginTransmission(FRONT_US);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        Wire.beginTransmission(REAR_US);
         Wire.send(0x00);
         Wire.send(0x51);
         Wire.endTransmission();
@@ -1256,22 +1536,24 @@ void loop()
 
 #ifdef OPPONENT_DETECTION
         /* OPPONENT DETECTION */
-        if (((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
+/*        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE && have_king == 0) || (front_distance_up_right < FRONT_IR_DISTANCE) || (front_distance_up_left < FRONT_IR_DISTANCE))
+            && (has_pawn != TAKE_PAWN)
             && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
-                                                                                                  || (has_pawn == AVOIDING0)
-                                                                                                  || (has_pawn == AVOIDING1)
+                                                                                                  || (has_pawn == AVOIDING2))) {
+*/
+        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE))
+            && (has_pawn != TAKE_PAWN)
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && ((bot_command_alpha.state == COMMAND_DONE)
                                                                                                   || (has_pawn == AVOIDING2))) {
 
-            if ((has_pawn == AVOIDING0) || (has_pawn == AVOIDING1) || (has_pawn == AVOIDING2)) {
-
-            } else {
-                prev_has_pawn = has_pawn;
-            }
 
             struct Point test_point;
             test_point = estimate_center(&maximus);
 
             if ((check_point_in_map(&test_point) != 0)) {
+                if (has_pawn != AVOIDING_OPP1 && has_pawn != AVOIDING_OPP2)
+                    prev_has_pawn = has_pawn;
+
                 Serial.print("Opponent detected ");
                 Serial.print(opponent_sensor);
                 Serial.print(" ");
@@ -1289,9 +1571,9 @@ void loop()
                     } else if ((abs(test_point.x) < 350) && (test_point.y > 1050)) {
                         opponent_subzone = 3;
                     } else if ((test_point.x < -350) && (test_point.y < 1050)) {
-                        opponent_subzone = 1;
+                        opponent_subzone = 0;
                     } else if ((test_point.x < -350) && (test_point.y > 1050)) {
-                        opponent_subzone = 2;
+                        opponent_subzone = 1;
                     }
                 } else {
                     if ((test_point.x > 350) && (test_point.y < 1050)) {
@@ -1309,110 +1591,99 @@ void loop()
                     }
                 }
 
-
                 Serial3.print("o");
+
 
                 if ((is_in_our_side(&maximus) == 1) && (working_side == -1) && (opponent_subzone == 2)) {
                     // We want to go on opponent side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
                     Serial.println("Opponent : middle, want : opponent side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
+                    delay(500);
+                    stop_robot();
 
                     goto_xy(color * 350, 1400);
-                    my_test_point.x = (-1) * color * 300;
-                    my_test_point.y = 1400;
+                    avoidingopp_point.x = (-1) * color * 300;
+                    avoidingopp_point.y = 1400;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == -1) && (opponent_subzone == 3)) {
                     // We want to go on opponent side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
                     Serial.println("Opponent : middle, want : opponent side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
+                    delay(500);
+                    stop_robot();
 
-                    goto_xy(color * 300, 450);
-                    my_test_point.x = (-1) * color * 300;
-                    my_test_point.y = 350;
+                    goto_xy(color * 300, 500);
+                    avoidingopp_point.x = (-1) * color * 300;
+                    avoidingopp_point.y = 350;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 3)) {
                     // We want to go on our side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
                     Serial.println("Opponent : middle, want : our side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
+                    delay(500);
+                    stop_robot();
 
                     goto_xy((-1) * color * 300, 350);
-                    my_test_point.x = color * 300;
-                    my_test_point.y = 450;
+                    avoidingopp_point.x = color * 300;
+                    avoidingopp_point.y = 500;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 0) && (working_side == 1) && (opponent_subzone == 2)) {
                     // We want to go on our side, but opponent is in the middle
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
                     Serial.println("Opponent : middle, want : our side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
+                    delay(500);
+                    stop_robot();
 
                     goto_xy((-1) * color * 300, 1400);
-                    my_test_point.x = color * 350;
-                    my_test_point.y = 1400;
+                    avoidingopp_point.x = color * 350;
+                    avoidingopp_point.y = 1400;
                     has_pawn = AVOIDING_OPP1;
                 } else if ((is_in_our_side(&maximus) == 1) && (working_side == 1) && (opponent_subzone == 4 || opponent_subzone == 5)) {
                     // We are in our side, and the opponent too
-                    stop_robot();
+                    direct_stop_robot();
                     delay(200);
                     Serial.println("Opponent : our side, want : our side");
                     delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
                     delay(200);
-                    set_new_command(&bot_command_delta, -50);
+                    set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
-
-/*
-                    while(((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
-                        && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
-
-                        Wire.beginTransmission(0x70);
-                        Wire.send(0x02);
-                        Wire.endTransmission();
-
-                        Wire.requestFrom(0x70, 2);
-
-                        if (2 <= Wire.available()) {
-                            opponent_sensor = Wire.receive();
-                            opponent_sensor = opponent_sensor << 8;
-                            opponent_sensor |= Wire.receive();
-                        }
-                
-                        Wire.beginTransmission(0x70);
-                        Wire.send(0x00);
-                        Wire.send(0x51);
-                        Wire.endTransmission();
-                
-                        sense_opponent_ir();
-                        delay(70);
-                    }
-*/
+                    delay(500);
+                    stop_robot();
 
                     if (pawn_stack == 0) {                 // We don't carry anything
-                        goto_xy((-1) * color * 300, maximus.pos_X);
+                        goto_xy((-1) * color * 300, maximus.pos_Y);
                         working_side = -1;
                         has_pawn = BACK;
+                        green_point_index++;
                     } else {                               // We are carrying something
-
-                        my_test_point = find_nearest(&maximus, my_color_points, 18);
-                        x_topawn = my_test_point.x;
-                        y_topawn = my_test_point.y;
+                        if (test_point.x < maximus.pos_X) {
+                            avoidingopp_point = find_nearest_pos_side(&maximus, my_color_points, 18);
+                        } else {
+                            avoidingopp_point = find_nearest_neg_side(&maximus, my_color_points, 18);
+                        }
+                        //avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
+                        x_topawn = avoidingopp_point.x;
+                        y_topawn = avoidingopp_point.y;
                         sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                         if (sens == 0) {                   // Front
                             goto_xy(x_topawn, y_topawn);
@@ -1448,42 +1719,23 @@ void loop()
                     delay(200);
                     set_new_command(&bot_command_delta, -70);
                     delta_motor.max_speed = DELTA_MAX_SPEED;
-
-
-                    /*
-                       while(((opponent_sensor < 47 && have_king == 0) || (front_distance_up_right < 35) || (front_distance_up_left < 35)) && (has_pawn != TAKE_PAWN)
-                       && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
-
-                       Wire.beginTransmission(0x70);
-                       Wire.send(0x02);
-                       Wire.endTransmission();
-
-                       Wire.requestFrom(0x70, 2);
-
-                       if (2 <= Wire.available()) {
-                       opponent_sensor = Wire.receive();
-                       opponent_sensor = opponent_sensor << 8;
-                       opponent_sensor |= Wire.receive();
-                       }
-
-                       Wire.beginTransmission(0x70);
-                       Wire.send(0x00);
-                       Wire.send(0x51);
-                       Wire.endTransmission();
-
-                       sense_opponent_ir();
-                       delay(70);   
-                       }
-                     */
+                    delay(500);
+                    stop_robot();
                     if (pawn_stack == 0) {                 // We don't carry anything
-                        goto_xy(color * 300, maximus.pos_X);
+                        goto_xy(color * 300, maximus.pos_Y);
                         working_side = 1;
                         has_pawn = BACK;
+                        green_point_index++;
                     } else {                               // We are carrying something
 
-                        my_test_point = find_nearest(&maximus, my_color_points, 18);
-                        x_topawn = my_test_point.x;
-                        y_topawn = my_test_point.y;
+                        if (test_point.x < maximus.pos_X) {
+                            avoidingopp_point = find_nearest_pos_side(&maximus, my_color_points, 18);
+                        } else {
+                            avoidingopp_point = find_nearest_neg_side(&maximus, my_color_points, 18);
+                        }
+                        //avoidingopp_point = find_nearest(&maximus, my_color_points, 18);
+                        x_topawn = avoidingopp_point.x;
+                        y_topawn = avoidingopp_point.y;
                         sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                         if (sens == 0) {                   // Front
                             goto_xy(x_topawn, y_topawn);
@@ -1511,12 +1763,41 @@ void loop()
                        my_test_point.y = 1400;
                        has_pawn = AVOIDING_OPP1;
                      */
+                } else if ((is_in_our_side(&maximus) == 1) && (working_side == 1) && (opponent_subzone == 3 || opponent_subzone == 2)) {
+                    // We are in our side, the opponent is in the middle and we want to stay in our side
+                    while ((opponent_sensor > 0 && opponent_sensor < 48 && have_king == 0)) {
+
+                        Wire.beginTransmission(FRONT_US);
+                        Wire.send(0x02);
+                        Wire.endTransmission();
+
+                        Wire.requestFrom(FRONT_US, 2);
+
+                        if (2 <= Wire.available()) {
+                            opponent_sensor = Wire.receive();
+                            opponent_sensor = opponent_sensor << 8;
+                            opponent_sensor |= Wire.receive();
+                        }
+
+                        Wire.beginTransmission(FRONT_US);
+                        Wire.send(0x00);
+                        Wire.send(0x51);
+                        Wire.endTransmission();
+
+                        sense_opponent_ir();
+                        delay(70);
+
+
+                    }
+
+                    if (has_pawn == INTERMEDIATE_RELEASE) {
+                        goto_xy(color * INTERMEDIATE_POS, 1500);
+                    } else {
+                        goto_xy(release_point.x, release_point.y);
+                    }
+
+
                 }
-
-
-
-
-
 
 
 
@@ -1550,8 +1831,53 @@ void loop()
 
 
 
+#ifdef OPPONENT_DETECTION
+        /* OPPONENT DETECTION */
+        if (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) && (has_pawn == BACK)) {
 
 
+            Serial.print("Opponent detected (BACK) ");
+            Serial.println(opponent_sensor_rear);
+
+            Serial3.print("o");
+
+            direct_stop_robot();
+
+            while (((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE))) {
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x02);
+                Wire.endTransmission();
+
+                Wire.requestFrom(REAR_US, 2);
+
+                if (2 <= Wire.available()) {
+                    opponent_sensor_rear = Wire.receive();
+                    opponent_sensor_rear = opponent_sensor_rear << 8;
+                    opponent_sensor_rear |= Wire.receive();
+                }
+
+                Wire.beginTransmission(REAR_US);
+                Wire.send(0x00);
+                Wire.send(0x51);
+                Wire.endTransmission();
+
+
+                delay(70);
+
+
+            }
+
+            double dist = distance_coord(&maximus, my_color_points[nearest_index].x, my_color_points[nearest_index].y);
+            if (dist < (240 + 180)) {
+
+                set_new_command(&bot_command_delta, (-1) * (190 - abs(dist - 240)));
+                delay(100);
+
+            }
+
+        }
+#endif
 
 
 
@@ -1581,6 +1907,8 @@ void loop()
                     set_new_command(&bot_command_delta, -20);
                     delay(100);
                     PAWN_go_down();
+                    set_new_command(&bot_command_delta, 20);
+                    delay(300);
                     PAWN_grip_pawn();
 
                     delta_motor.max_speed = DELTA_MAX_SPEED;
@@ -1596,7 +1924,7 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
                     Serial.println("Tour de ROI");
@@ -1654,11 +1982,11 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                     delay(200);
 
-                    pawn_stack = 0;
+                    pawn_stack++;
 
                     nb_check = 0;
                 } else {
@@ -1709,12 +2037,30 @@ void loop()
             } else {
                 barCode_timer--;
             }
-
+/*
             if (have_king == 0) {
                 int test_barcode = barCode_checkifdata();
                 have_king = test_barcode;
             }
-
+*/
+            if (have_king == 0) {
+                sensorValue = digitalRead(NEW_KING_SENSOR);
+                if (sensorValue == HIGH) {
+                    if (is_in_our_side(&maximus) == 1) {
+                        if (queen_taken_our == 1) {
+                            have_king = 1;                 // Roi
+                        } else {
+                            have_king = 2;
+                        }
+                    } else {
+                        if (queen_taken_opponent == 1) {
+                            have_king = 1;                 // Roi
+                        } else {
+                            have_king = 2;
+                        }
+                    }
+                }
+            }
 
             sensorValue = digitalRead(PAWN_SENSOR);
 
@@ -1723,7 +2069,8 @@ void loop()
                 if (nb_check == 0) {
 
                     direct_stop_robot();
-
+                    bot_command_alpha.state = COMMAND_DONE;
+                    bot_command_delta.state = COMMAND_DONE;
                     Serial.println("Take pawn");
                     //set_new_command(&bot_command_delta, -5);
 
@@ -1775,7 +2122,7 @@ void loop()
                     }
                     has_pawn = GOTO_RELEASE;
 
-
+                    green_point_index++;
                     nb_check = 0;
                     pawn_found = 1;
                 } else {
@@ -1830,8 +2177,12 @@ void loop()
             case NO_PAWN:
                 Serial.println("NO_PAWN");
                 barCode_flush();
+
                 pawn_found = 0;
-                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                delta_motor.max_speed = DELTA_MAX_SPEED_BACK - 5000;
+
+                PAWN_release_for_greenzone();
+                PAWN_go_med();
 
 /*                if (green_points[green_point_index].x < 0)
                     goto_xy(-900, green_points[green_point_index].y);
@@ -1840,7 +2191,7 @@ void loop()
 */
                 goto_xy(working_side * green_points[green_point_index].x, my_test_point.y);
 
-                PAWN_release_for_greenzone();
+
                 PAWN_go_down();
 
                 //has_pawn = TURNING_DIRECTION;
@@ -1872,7 +2223,7 @@ void loop()
                 PAWN_mini_go_up();
 
                 delta_motor.max_speed = DELTA_MAX_SPEED_BACK_PAWN;
-                set_new_command(&bot_command_delta, (-330));    //350
+                set_new_command(&bot_command_delta, (-1) * (abs(maximus.pos_X) - 900)); //350
 
                 // To store the king and queen position
                 if (have_king == 1) {                      // I have a king
@@ -1923,15 +2274,17 @@ void loop()
                     }
                 }
 
-                if ((green_point_index == 1) && (already_reinit == 0)) {
+                if ((green_point_index == 1) && (already_recalibrate == 0)) {
                     direct_stop_robot();
                     reinit_x_axis(&maximus);
-                    already_reinit = 1;
+                    already_recalibrate = 1;
                 }
+
 
                 PAWN_go_up();
 
                 has_pawn = GO_BACK;
+
 
 
                 break;
@@ -1951,11 +2304,6 @@ void loop()
 
                         if (working_side == 1) {           // On our side
 #ifdef HUGE_STACKS
-/*                            way_point_index = 3;
-                            goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
-
-                            has_pawn = FIND_PAWN;
-*/
                             if (release_priorities[12] >= 10) { // if a pawn is stored
                                 nearest_index = 12;
                                 x_topawn = my_color_points[nearest_index].x;
@@ -1975,14 +2323,15 @@ void loop()
                                 y_topawn = my_color_points[nearest_index].y;
                                 release_point.x = my_color_points[nearest_index].x;
                                 release_point.y = my_color_points[nearest_index].y;
+
                                 has_pawn = STACK;
+
                             } else {
                                 way_point_index = 3;
                                 goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
 
                                 has_pawn = FIND_PAWN;
                             }
-
 #else
                             nearest_index = 16;
                             x_topawn = my_color_points[nearest_index].x;
@@ -1991,7 +2340,7 @@ void loop()
                             release_point.y = my_color_points[nearest_index].y;
 
                             //goto_xy(0, 1600);
-                            goto_xy(HOME, 1600);           // POUR LES TESTS A LA MAISON
+                            goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                             has_pawn = RELEASE_BONUS;
 #endif
@@ -2063,135 +2412,45 @@ void loop()
                         if (working_side == 1) {           // On our side
 
                             // TODO
-                            if (release_priorities[12] >= 10) { // if a pawn is stored
-#ifdef HUGE_STACKS
-/*
-                                nearest_index = 12;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
+                            nearest_index = 0;
+                            x_topawn = my_color_points[nearest_index].x;
+                            y_topawn = my_color_points[nearest_index].y;
+                            release_point.x = my_color_points[nearest_index].x;
+                            release_point.y = my_color_points[nearest_index].y;
 
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-                                nearest_index = 0;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-                                has_pawn = STACK;
-*/
-                                nearest_index = 0;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-
-                                has_pawn = GOTO_RELEASE;
-#else
-                                nearest_index = 0;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-
-                                has_pawn = GOTO_RELEASE;
-
-#endif
-                            } else {
-                                nearest_index = 0;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-
-                                has_pawn = GOTO_RELEASE;
+                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                            if (sens == 0) {               // Front
+                                goto_xy(x_topawn, y_topawn);
+                            } else {                       // Back
+                                goto_xy_back(x_topawn, y_topawn);
                             }
+
+                            has_pawn = GOTO_RELEASE;
+
                         } else {
 
                             // TODO
-                            if (release_priorities[14] >= 10) { // if a pawn is stored
-#ifdef HUGE_STACKS
-                                nearest_index = 14;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
+                            nearest_index = 5;
+                            x_topawn = my_color_points[nearest_index].x;
+                            y_topawn = my_color_points[nearest_index].y;
+                            release_point.x = my_color_points[nearest_index].x;
+                            release_point.y = my_color_points[nearest_index].y;
 
 
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-                                has_pawn = STACK;
-#else
-                                nearest_index = 5;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-
-                                has_pawn = GOTO_RELEASE;
-
-#endif
-                            } else {
-                                nearest_index = 5;
-                                x_topawn = my_color_points[nearest_index].x;
-                                y_topawn = my_color_points[nearest_index].y;
-                                release_point.x = my_color_points[nearest_index].x;
-                                release_point.y = my_color_points[nearest_index].y;
-
-
-                                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
-                                if (sens == 0) {           // Front
-                                    goto_xy(x_topawn, y_topawn);
-                                } else {                   // Back
-                                    goto_xy_back(x_topawn, y_topawn);
-                                }
-
-                                has_pawn = GOTO_RELEASE;
+                            sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                            if (sens == 0) {               // Front
+                                goto_xy(x_topawn, y_topawn);
+                            } else {                       // Back
+                                goto_xy_back(x_topawn, y_topawn);
                             }
+
+                            has_pawn = GOTO_RELEASE;
+                            //}
                         }
                     } else {                               // I have a pawn
                         if (working_side == 1) {           // On our side
                             // First on the store zone, then on bonus zone in opponent's side
-                            if (release_priorities[12] < 6) {
+                            if ((release_priorities[12] < 6) && (release_priorities[16] < 90)) {
                                 nearest_index = 12;
                                 x_topawn = my_color_points[nearest_index].x;
                                 y_topawn = my_color_points[nearest_index].y;
@@ -2256,7 +2515,7 @@ void loop()
                             }
 
                             has_pawn = GOTO_RELEASE;
-                        } else {
+                        } else {                           // Opponent side
                             if (release_priorities[11] == 1) {  // Nothing on it
                                 nearest_index = 11;
                                 x_topawn = my_color_points[nearest_index].x;
@@ -2294,23 +2553,21 @@ void loop()
                             } else {
                                 // Find another place
 
-
-
-                                nearest_index = 14;
+                                if (abs(maximus.pos_X) < 525) {
+                                    nearest_index = 13;
+                                } else {
+                                    nearest_index = 14;
+                                }
                                 x_topawn = my_color_points[nearest_index].x;
                                 y_topawn = my_color_points[nearest_index].y;
                                 release_point.x = my_color_points[nearest_index].x;
                                 release_point.y = my_color_points[nearest_index].y;
-
                                 sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                                 if (sens == 0) {           // Front
                                     goto_xy(x_topawn, y_topawn);
                                 } else {                   // Back
                                     goto_xy_back(x_topawn, y_topawn);
                                 }
-
-
-
 
                             }
 
@@ -2323,26 +2580,116 @@ void loop()
 
             case FIND_PAWN:
                 Serial.println("FIND_PAWN");
-                way_point_index++;
-                goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
-//                nearest_index = 0;
+
+                if (way_point_index >= 5) {
+                    nearest_index = 16;
+                    x_topawn = my_color_points[nearest_index].x;
+                    y_topawn = my_color_points[nearest_index].y;
+                    release_point.x = my_color_points[nearest_index].x;
+                    release_point.y = my_color_points[nearest_index].y;
+
+                    //goto_xy(0, 1600);
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
+
+                    has_pawn = RELEASE_BONUS;
+                } else {
+                    way_point_index++;
+                    goto_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+                    //                nearest_index = 0;
+                }
+
 
                 break;
 
             case GOTO_RELEASE:
                 Serial.println("GOTO_RELEASE");
                 if (release_pawn == 1) {
-                    PAWN_release_for_greenzone();
-                    delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
-                    delay(100);
-                    set_new_command(&bot_command_delta, (-200));        // TO ADJUST
 
-                    PAWN_go_up();
-                    pawn_stack = 0;
                     if (have_king >= 1) {
+                        delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                        set_new_command(&bot_command_delta, (30));
+                        delay(500);
+                        PAWN_release_for_greenzone();
+                        delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                        delay(100);
+
+                        if (release_priorities[nearest_index] == 20) {
+                            PAWN_release_pawn_huge();
+                            PAWN_go_med();
+                            //delay(100);
+                            PAWN_grip_pawn();
+                            delay(200);
+                            PAWN_release_for_greenzone();
+                            delay(100);
+                        }
+                        //set_new_command(&bot_command_delta, (-200));    // TO ADJUST
+
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x00);
+                        Wire.send(0x51);
+                        Wire.endTransmission();
+
+                        delay(70);
+
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x02);
+                        Wire.endTransmission();
+
+                        Wire.requestFrom(REAR_US, 2);
+
+                        if (2 <= Wire.available()) {
+                            opponent_sensor_rear = Wire.receive();
+                            opponent_sensor_rear = opponent_sensor_rear << 8;
+                            opponent_sensor_rear |= Wire.receive();
+                        }
+
+
+
+                        if ((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) {
+                            PAWN_go_up();
+                            set_new_command(&bot_command_delta, (-200));
+                        } else {
+                            set_new_command(&bot_command_delta, (-200));        // TO ADJUST
+                            PAWN_go_up();
+                        }
+
+                        //PAWN_go_up();
+                        pawn_stack = 0;
                         release_priorities[nearest_index] = 99;
                         Serial3.print("h");
                     } else {
+                        delay(200);
+                        PAWN_release_for_greenzone();
+                        delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                        delay(30);
+
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x00);
+                        Wire.send(0x51);
+                        Wire.endTransmission();
+
+                        delay(70);
+
+                        Wire.beginTransmission(REAR_US);
+                        Wire.send(0x02);
+                        Wire.endTransmission();
+
+                        Wire.requestFrom(REAR_US, 2);
+
+                        if (2 <= Wire.available()) {
+                            opponent_sensor_rear = Wire.receive();
+                            opponent_sensor_rear = opponent_sensor_rear << 8;
+                            opponent_sensor_rear |= Wire.receive();
+                        }
+
+                        if ((opponent_sensor_rear > 0 && opponent_sensor_rear < REAR_US_DISTANCE)) {
+                            PAWN_go_up();
+                            set_new_command(&bot_command_delta, (-200));
+                        } else {
+                            set_new_command(&bot_command_delta, (-200));        // TO ADJUST
+                            PAWN_go_up();
+                        }
+                        pawn_stack = 0;
                         release_priorities[nearest_index] = 20;
                     }
                     have_king = 0;
@@ -2364,159 +2711,203 @@ void loop()
 
             case BACK:
                 Serial.println("BACK");
+                //Serial.println((time_in_match * 90) / 10970);
                 PAWN_release_pawn();
                 delta_motor.max_speed = DELTA_MAX_SPEED;
 
                 has_pawn = NO_PAWN;
                 have_king = 0;
 
-                if (green_point_index == 0) {
-                    // CHercher les rois/reines que l'on aurait pas prit
+                // Check if we steal the enemy bonus point
+                if (nearest_index == 16) {
+                    x_topawn = my_color_points[16].x;
+                    y_topawn = my_color_points[16].y;
+                    release_point.x = my_color_points[13].x;
+                    release_point.y = my_color_points[13].y;
+                    nearest_index = 13;
 
-                    if ((king_taken_our == 0) && (king_taken_opponent == 1)) {
-                        working_side = 1;
-                        have_king = 1;
-                        my_test_point.x = color * 800;
-                        my_test_point.y = taken_king1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                    } else if ((king_taken_our == 1) && (king_taken_opponent == 0)) {
-                        working_side = -1;
-                        have_king = 1;
-                        my_test_point.x = (-1) * color * 800;
-                        my_test_point.y = taken_king1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                    } else if ((queen_taken_our == 0) && (queen_taken_opponent == 1)) {
-                        working_side = 1;
-                        have_king = 2;
-                        my_test_point.x = color * 800;
-                        my_test_point.y = taken_queen1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                    } else if ((queen_taken_our == 1) && (queen_taken_opponent == 0)) {
-                        working_side = -1;
-                        have_king = 2;
-                        my_test_point.x = (-1) * color * 800;
-                        my_test_point.y = taken_queen1.y;
-                        goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                    } else {
-                        our_green_zone_empty = 1;          // To know if our green zone is empty
-                        opp_green_zone_empty = 1;          // To know if the opponent's green zone is empty
+                    PAWN_release_for_greenzone();
 
-                        has_pawn = GO_BACK;
-                        robot_mode = PLACING_PAWN;
-                    }
+                    double ang = angle_coord(&maximus, (-1) * x_topawn, y_topawn) * RAD2DEG;
+                    set_new_command(&bot_command_alpha, ang);
 
+                    PAWN_go_down();
 
-
+                    has_pawn = PAWN_STEAL1;
                 } else {
 
+                    if (green_point_index == 0) {
+                        // CHercher les rois/reines que l'on aurait pas prit
+                        //Serial.println("Oui0 ");
+                        if ((king_taken_our == 0) && (king_taken_opponent == 1)) {
+                            working_side = 1;
+                            have_king = 1;
+                            my_test_point.x = color * 800;
+                            my_test_point.y = taken_king1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        } else if ((king_taken_our == 1) && (king_taken_opponent == 0)) {
+                            working_side = -1;
+                            have_king = 1;
+                            my_test_point.x = (-1) * color * 800;
+                            my_test_point.y = taken_king1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                            PAWN_close();
+                            PAWN_go_down();
+                        } else if ((queen_taken_our == 0) && (queen_taken_opponent == 1)) {
+                            working_side = 1;
+                            have_king = 2;
+                            my_test_point.x = color * 800;
+                            my_test_point.y = taken_queen1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                        } else if ((queen_taken_our == 1) && (queen_taken_opponent == 0)) {
+                            working_side = -1;
+                            have_king = 2;
+                            my_test_point.x = (-1) * color * 800;
+                            my_test_point.y = taken_queen1.y;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                            PAWN_close();
+                            PAWN_go_down();
+                        } else {
+                            our_green_zone_empty = 1;      // To know if our green zone is empty
+                            opp_green_zone_empty = 1;      // To know if the opponent's green zone is empty
 
-                    if (working_side == 1) {
-                        if (king_taken_our == 1) {         // Already take it
-                            if (queen_taken_our == 1) {    // Already take it
-// TODO
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-// TODO
-                            } else if (queen_taken_opponent == 1) {     // Already take the opponent's
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            }
-                        } else {                           // King not taken yet
-                            if (king_taken_opponent == 1) {
-                                have_king = 1;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_king1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_our == 1) {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_opponent == 1) {
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            }
+                            my_test_point.x = (-1) * color * INTERMEDIATE_POS;
+                            my_test_point.y = 1500;
+                            goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+
+                            way_point_index = 6;
+
+                            has_pawn = GO_BACK;
+                            robot_mode = PLACING_PAWN;
+
+                            //Serial.println((time_in_match * 90) / 10970);
 
                         }
+
+
 
                     } else {
-                        if (king_taken_opponent == 1) {    // Already take it
-                            if (queen_taken_opponent == 1) {    // Already take it
+
+                        //Serial.print("Non0 ");
+                        //Serial.print(working_side);
+                        //Serial.print(king_taken_our);
+                        //Serial.println(opponent_subzone);
+
+                        // Si on est du coté adverse et que l'on a jamais rencontré le robot adverse (ou chez lui), on retourne de notre coté pour finir d'empiler roi et reine
+                        if ((working_side == -1) && ((king_taken_our != 1) || (queen_taken_our != 1))
+                            && (opponent_subzone == 10 || opponent_subzone == 0 || opponent_subzone == 1)) {
+                            working_side = 1;
+                        }
+                        //Serial.println(working_side);
+
+                        if (working_side == 1) {
+                            if (king_taken_our == 1) {     // Already take it
+                                if (queen_taken_our == 1) {     // Already take it
 // TODO
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
 // TODO
-                            } else if (queen_taken_our == 1) {  // Already take the opponent's
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_opponent == 1) { // Already take the opponent's
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+                            } else {                       // King not taken yet
+                                if (king_taken_opponent == 1) {
+                                    have_king = 1;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_king1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_our == 1) {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_opponent == 1) {
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+
                             }
-                        } else {                           // King not taken yet
-                            if (king_taken_our == 1) {
-                                have_king = 1;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_king1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_opponent == 1) {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else if (queen_taken_our == 1) {
-                                have_king = 2;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = taken_queen1.y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
-                            } else {
-                                green_point_index--;
-                                my_test_point.x = working_side * color * 800;
-                                my_test_point.y = green_points[green_point_index].y;
-                                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
-                                //goto_xy(-800, green_points[green_point_index].y);
+
+                        } else {
+                            if (king_taken_opponent == 1) {     // Already take it
+                                if (queen_taken_opponent == 1) {        // Already take it
+// TODO
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+// TODO
+                                } else if (queen_taken_our == 1) {      // Already take the opponent's
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+                            } else {                       // King not taken yet
+                                if (king_taken_our == 1) {
+                                    have_king = 1;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_king1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_opponent == 1) {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else if (queen_taken_our == 1) {
+                                    have_king = 2;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = taken_queen1.y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                } else {
+                                    green_point_index--;
+                                    my_test_point.x = working_side * color * 800;
+                                    my_test_point.y = green_points[green_point_index].y;
+                                    goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                                    //goto_xy(-800, green_points[green_point_index].y);
+                                }
+
                             }
+
 
                         }
 
-
                     }
-
                 }
 
                 break;
@@ -2541,12 +2932,17 @@ void loop()
 
             case STACK:
                 Serial.println("STACK");
-
+                set_new_command(&bot_command_delta, 50);
+                delay(700);
                 PAWN_release_pawn();
-                delay(100);
+                delay(200);
+                set_new_command(&bot_command_delta, -20);
+                delay(200);
                 PAWN_go_down();
+                set_new_command(&bot_command_delta, 30);
+                delay(400);
                 PAWN_grip_pawn();
-                delay(100);
+                delay(300);
 
                 if (nearest_index == 16) {
                     nearest_index = 16;
@@ -2556,12 +2952,11 @@ void loop()
                     release_point.y = my_color_points[nearest_index].y;
 
                     //goto_xy(0, 1600);
-                    goto_xy(HOME, 1600);                   // POUR LES TESTS A LA MAISON
-
-                    PAWN_go_up();
+                    goto_xy(color * INTERMEDIATE_POS, 1500);    // POUR LES TESTS A LA MAISON
 
                     has_pawn = RELEASE_BONUS;
 
+                    PAWN_go_up();
                 } else {
                     sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
                     if (sens == 0) {                       // Front
@@ -2578,6 +2973,377 @@ void loop()
                 break;
 
 
+
+            case AVOIDING0:
+                Serial.println("AVOIDING0");
+
+                if (avoid_index == 5 || avoid_index == 11) {
+                    if (abs(maximus.pos_X) > 525) {
+                        goto_xy((-1) * color * 300, 875);
+                    } else {
+                        goto_xy((-1) * color * 800, 875);
+                    }
+                } else {
+
+                    avoid_radius = distance_coord(&maximus, release_point.x, release_point.y);
+                    my_angle = angle_coord(&maximus, release_point.x, release_point.y);
+
+                    if (my_angle < 0) {                    // Avoid by left
+                        set_new_command(&bot_command_alpha, (my_angle + PI / 2) * RAD2DEG);
+                    } else {                               // Avoid by right
+                        set_new_command(&bot_command_alpha, (my_angle - PI / 2) * RAD2DEG);
+                    }
+                }
+                has_pawn = AVOIDING1;
+                break;
+            case AVOIDING1:
+                Serial.println("AVOIDING1");
+                if (avoid_index == 5 || avoid_index == 11) {
+                    has_pawn = prev_has_pawn;
+                    goto_xy(my_test_point.x, my_test_point.y);
+                } else {
+                    avoid_object(&maximus, &release_point, avoid_radius + 50);
+                    has_pawn = AVOIDING2;
+                }
+                break;
+            case AVOIDING2:
+                Serial.println("AVOIDING2");
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+                goto_xy(my_test_point.x, my_test_point.y);
+                has_pawn = prev_has_pawn;
+                break;
+
+            case AVOIDING_OPP1:
+                Serial.println("AVOIDING_OPP1");
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+                goto_xy(avoidingopp_point.x, avoidingopp_point.y);
+                has_pawn = AVOIDING_OPP2;
+                break;
+
+            case AVOIDING_OPP2:
+                Serial.println("AVOIDING_OPP2");
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+                if (prev_has_pawn == GOTO_RELEASE) {
+                    x_topawn = release_point.x;
+                    y_topawn = release_point.y;
+                    sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                    if (sens == 0) {                       // Front
+                        goto_xy(x_topawn, y_topawn);
+                    } else {                               // Back
+                        goto_xy_back(x_topawn, y_topawn);
+                    }
+                } else {
+                    goto_xy(my_test_point.x, my_test_point.y);
+                }
+                has_pawn = prev_has_pawn;
+                break;
+
+            case PAWN_STEAL1:
+                Serial.println("PAWN_STEAL1");
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+
+                set_new_command(&bot_command_delta, 300);
+                delay(1000);
+                PAWN_grip_pawn();
+                delay(200);
+                set_new_command(&bot_command_delta, -300);
+                delay(1000);
+
+
+                nearest_index = 13;
+                x_topawn = my_color_points[nearest_index].x;
+                y_topawn = my_color_points[nearest_index].y;
+                release_point.x = my_color_points[nearest_index].x;
+                release_point.y = my_color_points[nearest_index].y;
+
+                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                if (sens == 0) {                           // Front
+                    goto_xy(x_topawn, y_topawn);
+                } else {                                   // Back
+                    goto_xy_back(x_topawn, y_topawn);
+                }
+
+                //PAWN_go_up();
+
+
+
+                has_pawn = PAWN_STEAL2;
+                break;
+
+
+            case PAWN_STEAL2:
+
+
+                PAWN_release_for_greenzone();
+                delta_motor.max_speed = DELTA_MAX_SPEED_BACK;
+                delay(100);
+                set_new_command(&bot_command_delta, (-200));    // TO ADJUST
+
+                PAWN_go_up();
+                pawn_stack = 0;
+                release_priorities[nearest_index] = 99;
+                have_king = 0;
+                has_pawn = BACK;
+
+                placed_pawn[placed_pawn_index].x = my_color_points[nearest_index].x;
+                placed_pawn[placed_pawn_index].y = my_color_points[nearest_index].y;
+                placed_pawn_index++;
+
+                break;
+
+
+            }
+
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        break;
+
+    case PLACING_PAWN:
+
+
+
+
+
+        Wire.beginTransmission(FRONT_US);
+        Wire.send(0x02);
+        Wire.endTransmission();
+
+        Wire.requestFrom(FRONT_US, 2);
+
+        if (2 <= Wire.available()) {
+            opponent_sensor = Wire.receive();
+            opponent_sensor = opponent_sensor << 8;
+            opponent_sensor |= Wire.receive();
+        }
+
+        Wire.beginTransmission(FRONT_US);
+        Wire.send(0x00);
+        Wire.send(0x51);
+        Wire.endTransmission();
+
+        sense_opponent_ir();
+
+#ifdef OPPONENT_DETECTION
+        /* OPPONENT DETECTION */
+        if (((opponent_sensor > 0 && opponent_sensor < FRONT_US_DISTANCE && have_king == 0))
+            && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
+            prev_has_pawn = has_pawn;
+
+            struct Point test_point;
+            test_point = estimate_center(&maximus);
+
+            if ((check_point_in_map(&test_point) != 0)) {
+                Serial.print("Opponent detected ");
+                Serial.print(opponent_sensor);
+                Serial.print(" ");
+                Serial.print(front_distance_up_right);
+                Serial.print(" ");
+                Serial.println(front_distance_up_left);
+
+                if (color == 1) {
+                    if ((test_point.x > 350) && (test_point.y < 1050)) {
+                        opponent_subzone = 4;
+                    } else if ((test_point.x > 350) && (test_point.y > 1050)) {
+                        opponent_subzone = 5;
+                    } else if ((abs(test_point.x) < 350) && (test_point.y < 1050)) {
+                        opponent_subzone = 2;
+                    } else if ((abs(test_point.x) < 350) && (test_point.y > 1050)) {
+                        opponent_subzone = 3;
+                    } else if ((test_point.x < -350) && (test_point.y < 1050)) {
+                        opponent_subzone = 0;
+                    } else if ((test_point.x < -350) && (test_point.y > 1050)) {
+                        opponent_subzone = 1;
+                    }
+                } else {
+                    if ((test_point.x > 350) && (test_point.y < 1050)) {
+                        opponent_subzone = 0;
+                    } else if ((test_point.x > 350) && (test_point.y > 1050)) {
+                        opponent_subzone = 1;
+                    } else if ((abs(test_point.x) < 350) && (test_point.y < 1050)) {
+                        opponent_subzone = 2;
+                    } else if ((abs(test_point.x) < 350) && (test_point.y > 1050)) {
+                        opponent_subzone = 3;
+                    } else if ((test_point.x < -350) && (test_point.y < 1050)) {
+                        opponent_subzone = 4;
+                    } else if ((test_point.x < -350) && (test_point.y > 1050)) {
+                        opponent_subzone = 5;
+                    }
+                }
+
+                Serial3.print("o");
+
+
+
+                while (((opponent_sensor < FRONT_US_DISTANCE && have_king == 0))
+                       && (has_pawn != GO_BACK) && (has_pawn != BACK) && (has_pawn != TURNING_DIRECTION) && (bot_command_alpha.state == COMMAND_DONE)) {
+
+                    Wire.beginTransmission(FRONT_US);
+                    Wire.send(0x02);
+                    Wire.endTransmission();
+
+                    Wire.requestFrom(FRONT_US, 2);
+
+                    if (2 <= Wire.available()) {
+                        opponent_sensor = Wire.receive();
+                        opponent_sensor = opponent_sensor << 8;
+                        opponent_sensor |= Wire.receive();
+                    }
+
+                    Wire.beginTransmission(FRONT_US);
+                    Wire.send(0x00);
+                    Wire.send(0x51);
+                    Wire.endTransmission();
+
+                    sense_opponent_ir();
+                    delay(70);
+                }
+
+
+
+
+
+
+
+
+
+
+            }
+
+        }
+#endif
+
+
+        if (has_pawn == AVOIDING2) {
+            // Check if the trajectory become available
+
+            the_point.x = maximus.pos_X;
+            the_point.y = maximus.pos_Y;
+            if (trajectory_intersection_pawn(&the_point, &my_test_point, &release_point, 270) == 1) {   // pawn is in the trajectory
+                // Compute an intermediate way_point
+                //Serial.print("In trajectory ");
+
+            } else {
+                Serial.println("Not anymore in trajectory");
+                //stop_robot();
+
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+                alpha_motor.max_speed = ALPHA_MAX_SPEED;
+                set_new_command(&bot_command_delta, 10);
+                //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+                has_pawn = prev_has_pawn;
+                goto_avoiding_placed_point(&maximus, placed_pawn, placed_pawn_index, &my_test_point);
+                //delay(400);
+
+
+            }
+
+        }
+
+
+
+
+        if ((bot_command_alpha.state == COMMAND_DONE) && (bot_command_delta.state == COMMAND_DONE)) {
+            switch (has_pawn) {
+
+            case GO_BACK:
+                Serial.println("GO_BACK");
+
+                delta_motor.max_speed = DELTA_MAX_SPEED;
+
+                //goto_pawn_xy(way_points[way_point_index].x, way_points[way_point_index].y);
+                x_topawn = way_points[way_point_index].x;
+                y_topawn = way_points[way_point_index].y;
+                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                if (sens == 0) {                           // Front
+                    goto_xy(x_topawn, y_topawn);
+                } else {                                   // Back
+                    goto_xy_back(x_topawn, y_topawn);
+                }
+
+                PAWN_release_pawn();
+
+                has_pawn = TAKE_PAWN;
+                break;
+
+            case INTERMEDIATE_RELEASE:
+
+                has_pawn = TAKE_PAWN;
+                break;
+
+            case TAKE_PAWN:
+
+                PAWN_release_pawn();
+                delay(100);
+                PAWN_go_down();
+                PAWN_grip_pawn();
+                delay(200);
+
+                if (way_point_index == 6) {
+                    set_new_command(&bot_command_delta, (-200));        // TO ADJUST
+                    delay(1000);
+                }
+
+
+                my_test_point = find_nearest(&maximus, my_color_points, 18);
+                x_topawn = my_test_point.x;
+                y_topawn = my_test_point.y;
+                sens = move_pawn_to_xy(&maximus, &x_topawn, &y_topawn);
+                if (sens == 0) {                           // Front
+                    goto_xy(x_topawn, y_topawn);
+                } else {                                   // Back
+                    goto_xy_back(x_topawn, y_topawn);
+                }
+
+
+                has_pawn = GOTO_RELEASE;
+                break;
+
+            case GOTO_RELEASE:
+
+                PAWN_release_pawn();
+                delay(100);
+
+                placed_pawn[placed_pawn_index].x = my_test_point.x;
+                placed_pawn[placed_pawn_index].y = my_test_point.y;
+                placed_pawn_index++;
+
+                set_new_command(&bot_command_delta, (-200));
+
+                if (way_point_index == 8) {
+                    while (1);
+                } else {
+                    way_point_index++;
+                }
+                has_pawn = GO_BACK;
+                break;
 
             case AVOIDING0:
                 Serial.println("AVOIDING0");
@@ -2612,63 +3378,13 @@ void loop()
                 has_pawn = prev_has_pawn;
                 break;
 
-            case AVOIDING_OPP1:
-                Serial.println("AVOIDING_OPP1");
-                delta_motor.max_speed = DELTA_MAX_SPEED;
-                alpha_motor.max_speed = ALPHA_MAX_SPEED;
-
-                goto_xy(my_test_point.x, my_test_point.y);
-                has_pawn = AVOIDING_OPP2;
-                break;
-
-            case AVOIDING_OPP2:
-                Serial.println("AVOIDING_OPP2");
-                delta_motor.max_speed = DELTA_MAX_SPEED;
-                alpha_motor.max_speed = ALPHA_MAX_SPEED;
-
-                goto_xy(my_test_point.x, my_test_point.y);
-                has_pawn = prev_has_pawn;
-                break;
 
 
 
             }
 
+
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        break;
-
-    case PLACING_PAWN:
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -2938,28 +3654,28 @@ void init_color_points(void)
     blue_points[17].y = 175 + 350 + 350 + 350 + 350 + (350 / 2 + (350 - 120) / 2);
 
     /* Green points */
-    green_points[0].x = (color) * 1160;
-    green_points[1].x = (color) * 1160;
-    green_points[2].x = (color) * 1160;
+    green_points[0].x = (color) * 1190;
+    green_points[1].x = (color) * 1190;
+    green_points[2].x = (color) * 1190;
     green_points[0].y = 690;
     green_points[1].y = 970;
     green_points[2].y = 1250;
 
-    green_points[3].x = (color) * 1160;
-    green_points[4].x = (color) * 1160;
-    green_points[5].x = (-color) * 1160;
+    green_points[3].x = (color) * 1190;
+    green_points[4].x = (color) * 1190;
+    green_points[5].x = (-color) * 1190;
     green_points[3].y = 1530;
     green_points[4].y = 1810;
     green_points[5].y = 690;
 
-    green_points[6].x = (-color) * 1160;
-    green_points[7].x = (-color) * 1160;
-    green_points[8].x = (-color) * 1160;
+    green_points[6].x = (-color) * 1190;
+    green_points[7].x = (-color) * 1190;
+    green_points[8].x = (-color) * 1190;
     green_points[6].y = 970;
     green_points[7].y = 1250;
     green_points[8].y = 1530;
 
-    green_points[9].x = (-color) * 1170;
+    green_points[9].x = (-color) * 1190;
     green_points[9].y = 1810;
 
     release_priorities[0] = 2;
@@ -2967,12 +3683,12 @@ void init_color_points(void)
     release_priorities[2] = 2;
 
     release_priorities[3] = 5;
-    release_priorities[4] = 3;
+    release_priorities[4] = 2;
     release_priorities[5] = 1;
 
-    release_priorities[6] = 3;
+    release_priorities[6] = 4;
     release_priorities[7] = 3;
-    release_priorities[8] = 5;
+    release_priorities[8] = 15;
 
     release_priorities[9] = 3;
     release_priorities[10] = 3;
@@ -3025,12 +3741,15 @@ void init_way_points(void)
     way_points[5].x = 0;
     way_points[5].y = 1050;
 
-    way_points[6].x = (-1) * color * 350;
-    way_points[6].y = 350;
-    way_points[7].x = (-1) * color * 350;
-    way_points[7].y = 1600;
-    way_points[8].x = (-1) * color * 700;
-    way_points[8].y = 1600;
+
+    // GO take the opponent's pawns
+    way_points[6].x = (-1) * color * 165;
+    way_points[6].y = 185 + 350 + 350 + 350 + 350 + 350;
+    way_points[7].x = color * (-175 + 350 + 350);
+    way_points[7].y = 175 + 350;
+    way_points[8].x = color * (-175 + 350 + 350);
+    way_points[8].y = 175 + 350 + 700;
+
     way_points[9].x = (-1) * color * 700;
     way_points[9].y = 350;
 
@@ -3074,9 +3793,9 @@ void init_way_points(void)
     way_points[4].y = 700;
     way_points[5].x = 0;
     way_points[5].y = 700;
-
-    way_points[6].x = (-1) * color * 350;
-    way_points[6].y = 350;
+    // GO take the opponent's pawns
+    way_points[6].x = (-1) * color * 175;
+    way_points[6].y = 175 + 350 + 350 + 350 + 350 + 350;
     way_points[7].x = (-1) * color * 350;
     way_points[7].y = 1600;
     way_points[8].x = (-1) * color * 750;
@@ -3350,7 +4069,7 @@ void read_RoboClaw_voltage(char addr)
 
     Serial2.print(addr, BYTE);
     Serial2.print(24, BYTE);
-
+    claw_request_done = 1;
     transmit_status = 1;
 }
 
@@ -3366,10 +4085,11 @@ void check_RoboClaw_response(char addr)
     } else {
         digitalWrite(RESET_ROBOCLAW, LOW);
         Serial.println("RoboClaw not responding anymore");
-        delay(5);
+        delay(10);
         digitalWrite(RESET_ROBOCLAW, HIGH);
-        delay(500);
+        delay(600);
     }
+    claw_request_done = 0;
     transmit_status = 1;
 
 }
@@ -3461,9 +4181,16 @@ long compute_position_PID(struct RobotCommand *cmd, struct motor *used_motor)
     if (tmp < -(used_motor->max_speed))
         tmp = -(used_motor->max_speed);
 
-    if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 3)
-        && (abs(errDif) < 3)) {                            // 2 before
-        cmd->state = COMMAND_DONE;
+    if (used_motor->type == ALPHA_MOTOR) {
+        if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 3)
+            && (abs(errDif) < 3)) {                        // 2 before
+            cmd->state = COMMAND_DONE;
+        }
+    } else {
+        if ((cmd->state == PROCESSING_COMMAND) && (abs(err) < 6)
+            && (abs(errDif) < 5)) {                        // 2 before
+            cmd->state = COMMAND_DONE;
+        }
     }
 
     return tmp;
@@ -3631,7 +4358,10 @@ struct Point estimate_center(struct robot *my_robot)
 
     //read_down_IR();
 
+    result.x = my_robot->pos_X + 10.0 * (opponent_sensor + 5) * cos(my_robot->theta);
+    result.y = my_robot->pos_Y + 10.0 * (opponent_sensor + 5) * sin(my_robot->theta);
 
+/*
     if ((front_distance_up_right < DETECTION_LIMIT) && (opponent_sensor > DETECTION_LIMIT_MIDDLE)
         && (front_distance_up_left > DETECTION_LIMIT)) {
 
@@ -3668,7 +4398,7 @@ struct Point estimate_center(struct robot *my_robot)
         result.y = my_robot->pos_Y + 10 * (opponent_sensor + 5) * sin(my_robot->theta);
 
     }
-
+*/
     return result;
 }
 
@@ -3899,9 +4629,9 @@ int check_point_in_map(struct Point *my_point)
     int error = 0;                                         // Outside the map
     if ((my_point->x > (1500 - BORDER_LIMIT - 300)) || (my_point->x < (-1500 + BORDER_LIMIT + 300)) || (my_point->y > (2100 - BORDER_LIMIT))
         || (my_point->y < BORDER_LIMIT)
-        || ((my_point->y > 1800) && (((my_point->x > 350) && (my_point->x < 1450)) || ((my_point->x < -350) && (my_point->x > -1450))))
+        || ((my_point->y > 1950) && (((my_point->x > 350) && (my_point->x < 1450)) || ((my_point->x < -350) && (my_point->x > -1450))))
         || ((my_point->y < 450) && ((my_point->x > 950) || (my_point->x < -950)))
-        || ((my_point->y > 1800) && (my_point->x > (color * 50))))
+        || ((my_point->y > 1950) && (my_point->x > (color * 50))))
         error = 0;
     else
         error = 1;
@@ -3922,44 +4652,13 @@ int trajectory_intersection_pawn(struct Point *start, struct Point *end, struct 
     double y2 = (double) end->y / 10.0;
     double x3 = (double) center->x / 10.0;
     double y3 = (double) center->y / 10.0;
-/*      
-       Serial.print("s_x : ");
-       Serial.print(x1);
-       Serial.print(" s_y : ");
-       Serial.print(y1);
-       Serial.print(" e_x : ");
-       Serial.print(x2);
-       Serial.print(" e_y : ");
-       Serial.print(y2);
-       Serial.print(" c_x : ");
-       Serial.print(x3);
-       Serial.print(" c_y : ");
-       Serial.print(y3);
-       Serial.print(" radius : ");
-       Serial.println(radius);
-*/
-/*
-		double a = (end->x-start->x)*(end->x-start->x) + (end->y-start->y)*(end->y-start->y);
-		double b = 2 * ( (end->x-start->x)*(start->x-center->x) + (end->y-start->y)*(start->y-center->y) );
-		double c = (start->x-center->x)*(start->x-center->x) + (start->y-center->y)*(start->y-center->y) - radius*radius;
-*/
+
     double a = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
     double b = 2.0 * ((x2 - x1) * (x1 - x3) + (y2 - y1) * (y1 - y3));
     double c = (x1 - x3) * (x1 - x3) + (y1 - y3) * (y1 - y3) - ((double) radius / 10.0) * ((double) radius / 10.0);
-/*
-       Serial.print(a);
-       Serial.print(" ");
-       Serial.print(b);
-       Serial.print(" ");
-       Serial.println(c);
-*/
-    //result_t0 = c;
-    //result_t1 = a + b + c;
 
     delta = b * b - 4 * a * c;
-    /*
-       delta = pow(2*( (end->x-start->x)*(start->x-center->x) + (end->y-start->y)*(start->y-center->y) ),2) - 4*(pow(end->x-start->x, 2) + pow(end->y-start->y, 2))*(pow((start->x-center->x), 2)+pow((start->y-center->y),2)-pow(radius,2));
-     */
+
     if (delta >= 0) {
         result_t0 = ((-1) * b + sqrt(delta)) / (2 * a);
         result_t1 = ((-1) * b - sqrt(delta)) / (2 * a);
@@ -3975,6 +4674,26 @@ int trajectory_intersection_pawn(struct Point *start, struct Point *end, struct 
         /* A.I. Functions */
         /******************/
 struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+        if (distance < best_distance) {
+            best_distance = distance;
+            result.x = tab[i].x;
+            result.y = tab[i].y;
+            nearest_index = i;
+        }
+
+    }
+    return result;
+}
+
+struct Point find_nearest_our_side(struct robot *my_robot, struct Point tab[], int size)
 {
     struct Point result;
     result.x = color * 875;
@@ -4001,6 +4720,81 @@ struct Point find_nearest(struct robot *my_robot, struct Point tab[], int size)
                     result.y = tab[i].y;
                     nearest_index = i;
                 }
+            }
+        }
+    }
+    return result;
+}
+
+struct Point find_nearest_opp_side(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        if (color == 1) {
+            if (my_robot->pos_X > tab[i].x) {
+                double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    result.x = tab[i].x;
+                    result.y = tab[i].y;
+                    nearest_index = i;
+                }
+            }
+        } else {
+            if (my_robot->pos_X < tab[i].x) {
+                double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    result.x = tab[i].x;
+                    result.y = tab[i].y;
+                    nearest_index = i;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+struct Point find_nearest_pos_side(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        if (my_robot->pos_X < tab[i].x) {
+            double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+            if (distance < best_distance) {
+                best_distance = distance;
+                result.x = tab[i].x;
+                result.y = tab[i].y;
+                nearest_index = i;
+            }
+        }
+    }
+    return result;
+}
+
+struct Point find_nearest_neg_side(struct robot *my_robot, struct Point tab[], int size)
+{
+    struct Point result;
+    result.x = color * 875;
+    result.y = 525;
+    double best_distance = 999999.9;
+    nearest_index = 8;
+    for (int i = 0; i < size; i++) {
+        if (my_robot->pos_X > tab[i].x) {
+            double distance = distance_coord(my_robot, tab[i].x, tab[i].y) * release_priorities[i];
+            if (distance < best_distance) {
+                best_distance = distance;
+                result.x = tab[i].x;
+                result.y = tab[i].y;
+                nearest_index = i;
             }
         }
     }
@@ -4036,31 +4830,41 @@ void goto_avoiding_placed_point(struct robot *my_robot, struct Point tab[], int 
     if ((result.x == my_color_points[11].x) && (result.y == my_color_points[11].y)) {
         avoid_index = 11;
     }
+    if ((result.x == my_color_points[12].x) && (result.y == my_color_points[12].y)) {
+        result2 = 0;
+    }
 
-    if (result2 == 1) {
-        double ang, dist;
-        Serial.println("Must avoid pawn");
-        //PAWN_close_gripper();
-        release_point.x = result.x;
-        release_point.y = result.y;
+    if ((result.x == my_color_points[3].x) && (result.y == my_color_points[3].y)) {
+        goto_xy(dest->x, dest->y);
+    } else {
+        if (result2 == 1) {
+            double ang, dist;
+            Serial.println("Must avoid pawn");
+            release_point.x = result.x;
+            release_point.y = result.y;
 
-        if (avoid_index == 5 || avoid_index == 11) {
-            goto_xy((-1) * color * 625, 875);
-            has_pawn = AVOIDING0;
-        } else {
-            ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
-            set_new_command(&bot_command_alpha, ang);
+            if (avoid_index == 5 || avoid_index == 11) {
+                if (abs(maximus.pos_X) > 525) {
+                    goto_xy((-1) * color * 700, 875);
+                } else {
+                    goto_xy((-1) * color * 350, 875);
+                }
+            } else {
+                ang = angle_coord(my_robot, dest->x, dest->y) * RAD2DEG;
+                set_new_command(&bot_command_alpha, ang);
 
-            dist = distance_coord(&maximus, result.x, result.y) - 280;  // TO REDUCE LATER
-            set_new_command(&prev_bot_command_delta, dist);
-            bot_command_delta.state = WAITING_BEGIN;
-            //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+                dist = distance_coord(&maximus, result.x, result.y) - 280;      // TO REDUCE LATER
+                set_new_command(&prev_bot_command_delta, dist);
+                bot_command_delta.state = WAITING_BEGIN;
+                //goto_xy(way_points[way_point_index - 1].x, way_points[way_point_index - 1].y);
+            }
             prev_has_pawn = has_pawn;
             has_pawn = AVOIDING0;
+
+        } else {
+            goto_xy(dest->x, dest->y);
+            //has_pawn = ;
         }
-    } else {
-        goto_xy(dest->x, dest->y);
-        //has_pawn = ;
     }
 
 }
@@ -4106,7 +4910,7 @@ void reinit_y_axis(struct robot *my_robot)
 
 void reinit_x_axis(struct robot *my_robot)
 {
-    set_new_command(&bot_command_alpha, ((-1) * working_side * PI * RAD2DEG));
+    set_new_command(&bot_command_alpha, ((color) * working_side * PI * RAD2DEG));
     delay(1000);
     while ((bot_command_alpha.state != COMMAND_DONE)) {
         delay(100);
@@ -4120,8 +4924,8 @@ void reinit_x_axis(struct robot *my_robot)
     delay(200);
 
     // Set the X and theta values
-    my_robot->pos_X = (-1) * working_side * (1500 - DISTANCE_REAR_WHEELS);
-    if (working_side == -1) {
+    my_robot->pos_X = (color) * working_side * (1500 - DISTANCE_REAR_WHEELS);
+    if ((working_side * color) == 1) {
         my_robot->theta = PI;
     } else {
         my_robot->theta = 0;
@@ -4161,7 +4965,7 @@ void PAWN_grip_pawn(void)
     gripServo_left.write(115);
 }
 
-void PAWN_close_gripper(void)
+void PAWN_close(void)
 {
     gripServo_right.write(50);
     gripServo_left.write(130);
@@ -4173,6 +4977,12 @@ void PAWN_release_pawn(void)
     //gripServo_left.write(100);
     gripServo_right.write(111);
     gripServo_left.write(70);
+}
+
+void PAWN_release_pawn_huge(void)
+{
+    gripServo_right.write(121);
+    gripServo_left.write(60);
 }
 
 void PAWN_release_for_greenzone(void)
@@ -4234,15 +5044,24 @@ void PAWN_go_down(void)
         delay_ms(5);
         buttonState = digitalRead(LIFT_SWITCH_UP);
         if ((buttonState == 0) && (error == 0)) {
+            lifter_servo.write(90);
             set_new_command(&bot_command_delta, -100);
+            //set_new_command(&bot_command_delta, -25);
+            delay(700);
             lifter_servo.write(117);
             delay(300);
             error = 1;
         } else if ((buttonState == 0) && (error == 1)) {
+            lifter_servo.write(90);
             set_new_command(&bot_command_delta, -20);
             lifter_servo.write(55);
             delay(300);
             error = 0;
+        }
+
+        if (error == 1) {
+            set_new_command(&bot_command_delta, 120);
+            delay(800);
         }
 
         buttonState = digitalRead(LIFT_SWITCH_DOWN);
@@ -4257,6 +5076,13 @@ void PAWN_go_down(void)
     }
     //analogWrite(LIFT_MOTOR_PWM, 0);
 
+}
+
+void PAWN_go_med()
+{
+    lifter_servo.write(47);
+    delay(400);
+    lifter_servo.write(90);
 }
 
 /************************************/

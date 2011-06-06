@@ -24,10 +24,17 @@ Clock frequency : 16,00 MHz
 
 #include <NewSoftSerial.h>
 #include <RogueMP3.h>
+#include <RogueSD.h>
 
 NewSoftSerial rmp3_serial(12, 13);
 RogueMP3 rmp3(rmp3_serial);
+RogueSD filecommands(rmp3_serial);
 
+int numberOfSongs;
+int lastSong;
+char path[96];
+ 
+const char *directory = "";
 
 //create object to control an LCD.  
 //number of lines in display=1
@@ -82,6 +89,21 @@ void setup()
 
     rmp3.sync();
 
+    filecommands.sync();
+   
+    // mix up our random number generator
+    randomSeed(analogRead(0));
+   
+    // get the number of songs available
+    strcpy(path, directory);
+    strcat(path, "/");
+    strcat(path, "*.mp3");  // we have to do this because the IDE thinks that "/*" needs to be terminated everywhere
+   
+    numberOfSongs = filecommands.filecount(path);
+   
+    lastSong = -1;
+
+
     rmp3.setvolume(0);
 
     rmp3.playfile("/goliath_online.mp3");
@@ -122,6 +144,19 @@ void loop()
                colorWipe(BLUE, 30);
                }
              */
+             
+           if (key == 0) {
+             playNextSong();
+             while(1) {  
+               int mp3_status = rmp3.getplaybackstatus();
+ 
+                if (mp3_status == 'S')
+                    playNextSong();
+
+               delay(200);
+             }
+           }
+             
             if (key != oldkey) {
                 oldkey = key;
                 if (key >= 0) {
@@ -312,3 +347,55 @@ void colorWipe(uint8_t color, uint8_t wait)
     }
 }
 */
+
+void playNextSong()
+{
+  uint8_t s, i;
+  char filename[80];
+  char path[96];
+  int nextSong = 0;
+ 
+  if (numberOfSongs > 0)
+  {
+    // Select our next song randomly
+    if (numberOfSongs > 2)
+    {
+      do
+        nextSong = random(numberOfSongs);
+      while (nextSong == lastSong);
+    }
+    else if (numberOfSongs == 2)
+    {
+      // we only have two songs
+      if (lastSong == 0)
+        nextSong = 1;
+      else
+        nextSong = 0;
+    }
+ 
+    // now, get our file name from file list
+ 
+    filecommands.opendir(directory);
+ 
+    for (i = 0; i <= nextSong; i++)
+    {
+      filecommands.readdir(filename, "*.mp3");
+    }
+ 
+    strcpy(path, directory);
+    strcat(path, "/");
+    strcat(path, filename);
+ 
+    rmp3.playfile(path);
+ 
+    Serial.print("Playing: ");
+    Serial.println(path);
+ 
+    lastSong = nextSong;
+  }
+  else
+  {
+    Serial.println("No files to play.");
+  }
+}
+
