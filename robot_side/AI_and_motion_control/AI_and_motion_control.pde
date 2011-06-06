@@ -254,6 +254,8 @@ int side_king_sensor = 60;
 int side_king_sensor2 = 0;
 int opponent_sensor = 60;
 int opponent_sensor_rear = 60;
+int opponent_sensor_swap1 = 60;
+int opponent_sensor_swap2 = 60;
 
 int side_sensor_on = 1;
 
@@ -1026,6 +1028,10 @@ void loop()
             opponent_sensor |= Wire.receive();
         }
 
+        opponent_sensor_swap2 = opponent_sensor;
+        opponent_sensor = (opponent_sensor + opponent_sensor_swap1) / 2;
+        opponent_sensor_swap1 = opponent_sensor;
+
         Wire.beginTransmission(REAR_US);
         Wire.send(0x02);
         Wire.endTransmission();
@@ -1479,6 +1485,10 @@ void loop()
             opponent_sensor = opponent_sensor << 8;
             opponent_sensor |= Wire.receive();
         }
+
+        opponent_sensor_swap2 = opponent_sensor;
+        opponent_sensor = (opponent_sensor + opponent_sensor_swap1) / 2;
+        opponent_sensor_swap1 = opponent_sensor;
 
         Wire.beginTransmission(REAR_US);
         Wire.send(0x02);
